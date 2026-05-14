@@ -335,7 +335,7 @@ def render_banker_leg_page():
     )
 
     st.markdown('<div class="bk-table-wrap">', unsafe_allow_html=True)
-    st.dataframe(result["prize_df"], use_container_width=True, hide_index=True)
+    st.dataframe(result["prize_df"], width='stretch', hide_index=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)

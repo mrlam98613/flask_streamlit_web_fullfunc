@@ -17,8 +17,6 @@ attrs==26.1.0
     # via
     #   jsonschema
     #   referencing
-bcrypt==5.0.0
-    # via streamlit-authenticator
 beautifulsoup4==4.14.3
     # via bs4
 blinker==1.9.0
@@ -31,8 +29,6 @@ cachetools==6.2.6
     # via
     #   pyiceberg
     #   streamlit
-captcha==0.7.1
-    # via streamlit-authenticator
 certifi==2026.4.22
     # via
     #   httpcore
@@ -51,15 +47,11 @@ click==8.3.3
     #   streamlit
     #   uvicorn
 cryptography==48.0.0
-    # via
-    #   pyjwt
-    #   streamlit-authenticator
+    # via pyjwt
 deprecation==2.1.0
     # via
     #   postgrest
     #   storage3
-extra-streamlit-components==0.1.81
-    # via streamlit-authenticator
 flask==3.1.3
     # via flask-st-webapp (pyproject.toml)
 fsspec==2026.4.0
@@ -140,9 +132,7 @@ pandas==3.0.3
     #   flask-st-webapp (pyproject.toml)
     #   streamlit
 pillow==12.2.0
-    # via
-    #   captcha
-    #   streamlit
+    # via streamlit
 postgrest==2.30.0
     # via supabase
 propcache==0.5.2
@@ -169,9 +159,7 @@ pygments==2.20.0
 pyiceberg==0.11.1
     # via storage3
 pyjwt==2.12.1
-    # via
-    #   streamlit-authenticator
-    #   supabase-auth
+    # via supabase-auth
 pyparsing==3.3.2
     # via pyiceberg
 pyroaring==1.1.0
@@ -183,9 +171,7 @@ python-dateutil==2.9.0.post0
 python-multipart==0.0.28
     # via streamlit
 pyyaml==6.0.3
-    # via
-    #   flask-st-webapp (pyproject.toml)
-    #   streamlit-authenticator
+    # via flask-st-webapp (pyproject.toml)
 realtime==2.30.0
     # via supabase
 referencing==0.37.0
@@ -212,8 +198,6 @@ st-login-form==1.3.3
     # via flask-st-webapp (pyproject.toml)
 st-supabase-connection==2.1.3
     # via st-login-form
-st-theme==1.2.3
-    # via streamlit-navigation-bar
 starlette==1.0.0
     # via streamlit
 storage3==2.30.0
@@ -221,16 +205,8 @@ storage3==2.30.0
 streamlit==1.57.0
     # via
     #   flask-st-webapp (pyproject.toml)
-    #   extra-streamlit-components
     #   st-login-form
     #   st-supabase-connection
-    #   st-theme
-    #   streamlit-authenticator
-    #   streamlit-navigation-bar
-streamlit-authenticator==0.4.2
-    # via flask-st-webapp (pyproject.toml)
-streamlit-navigation-bar==3.3.0
-    # via flask-st-webapp (pyproject.toml)
 strenum==0.4.15
     # via supabase-functions
 strictyaml==1.7.3

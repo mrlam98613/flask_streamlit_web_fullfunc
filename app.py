@@ -1,6 +1,6 @@
-import streamlit as st
-# from streamlit_navigation_bar import st_navbar
 
+import streamlit as st
+from css import navigation_center_style
 
 # 1. 定義頁面
 pages = {
@@ -8,7 +8,7 @@ pages = {
     #     st.Page("app.py", title="首頁", icon="🏠"),
     # ],
     "預測紀錄": [
-        st.Page("pages/predict.py", title="下期預測", icon="🏆"),
+        st.Page("pages/0_card_lottoResults.py", title="下期預測", icon="🏆"),
     ],
     "開獎紀錄": [
         st.Page("pages/2_verifyPrize_results.py", title="最新開獎", icon="❤️"),
@@ -25,8 +25,11 @@ pages = {
     
 }
 
-# 2. 建立導覽列，設定為置頂 (position="top") , 
 
+# 2. 載入置中 CSS
+st.markdown(navigation_center_style, unsafe_allow_html=True)
+
+# 3. 建立導覽列，設定為置頂 (position="top")
 pg = st.navigation(pages, position="top")
 
 # # 3. 執行頁面

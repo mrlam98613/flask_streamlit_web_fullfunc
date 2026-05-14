@@ -128,7 +128,7 @@ def render_multiple_bet_page():
             )
         )
 
-    st.button("🔄 更新計算", type="primary", use_container_width=True)
+    st.button("🔄 更新計算", type="primary", width='stretch')
 
     total_bets, total_cost = calculate_bet_summary(bet_num=bet_num, bet_unit=bet_unit)
 
@@ -199,7 +199,7 @@ def render_multiple_bet_page():
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="mb-table-wrap">', unsafe_allow_html=True)
-    st.dataframe(prize_df, use_container_width=True, hide_index=True)
+    st.dataframe(prize_df, width='stretch', hide_index=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 
