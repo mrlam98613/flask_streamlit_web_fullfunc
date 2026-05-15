@@ -1,0 +1,18 @@
+# 系統每天自動執行 crontab.txt 格式
+# 分 小時 日 月 星期 命令  
+# 0   22   *  *   *    (每天 22:00)  
+# 0   6    *  *   *    (每天 06:00)  
+# 0   9    *  *   *    (每天 09:00)  
+# 30  14   *  *   *    (每天 14:30)  
+# 0   */6  *  *   *    (每 6 小時執行一次)  
+# 30 12,13,14,15 * * * (A0 下載) 轉換成東京時間 
+# 45 12,13,14,15 * * * (A1 預測) 轉換成東京時間 
+
+
+#---- 每 5 分鐘執行一次 (A0_main.py 下載)（輸出同時寫入檔案與容器 stdout）
+*/5 * * * * cd /app/Z1_lotto_2026_download && /usr/local/bin/python3 A0_main.py  2>&1 | tee -a /var/log/cron/msk-lotto.log > /proc/1/fd/1
+
+# ── A1 (預測投注)：
+#---- 每 7 分鐘執行一次（A1_seedBet_main.py ）
+*/7 * * * * cd /app/msk_seedLotto_apps && /usr/local/bin/python3 A1_seedBet_main.py 2>&1 | tee -a /var/log/cron/msk-seed.log > /proc/1/fd/1
+# -- 
