@@ -8,8 +8,8 @@
 # 30 12,13,14,15 * * * (A0 下載) 轉換成東京時間 
 # 45 12,13,14,15 * * * (A1 預測) 轉換成東京時間 
 
-
-#---- 每 5 分鐘執行一次 (A0_main.py 下載)（輸出同時寫入檔案與容器 stdout）
+# zeabur AI 修改。
+#---- 每 5 分鐘執行一次 (A0_main.py 下載)
 */5 * * * * cd /app/Z1_lotto_2026_download && /usr/local/bin/python3 A0_main.py  2>&1 | tee -a /var/log/cron/msk-lotto.log > /proc/1/fd/1
 
 # ── A1 (預測投注)：
