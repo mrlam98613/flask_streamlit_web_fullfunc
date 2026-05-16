@@ -10,6 +10,7 @@ def img_to_base64(path):
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode()
 
+next_draw_date = ""  # 確保 next_draw_date 變數在所有 if 判斷前都已正確定義
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PRIZE_RESULTS_PATH = PROJECT_ROOT / "A_msk_lottery_data_folder" / "M3_lotto_prize_results.csv"
@@ -17,9 +18,20 @@ LOTTO_RESULTS_PATH = PROJECT_ROOT / "A_msk_lottery_data_folder" / "M2_last_upgra
 BALLS_DIR = PROJECT_ROOT / "A_msk_balls_png"
 
 
-# # 載入樣式 (這行會把 CSS 注入到頁面中)
-st.markdown(container_style, unsafe_allow_html=True)
-st.markdown(card_style, unsafe_allow_html=True)
+
+# 加入自訂 CSS，縮小行距與分隔線間距
+st.markdown("""
+    <style>
+    .stMarkdown p, .stMarkdown h6, .stMarkdown h7 {
+        margin-bottom: 4px !important;
+        margin-top: 4px !important;
+    }
+    hr {
+        margin-top: 4px !important;
+        margin-bottom: 4px !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 
 # ===== 讀取最新一期開獎與派彩資料 =====
@@ -57,6 +69,7 @@ for i, line in enumerate(lines):
             break
         prize_csv_lines.append(line)
 
+
 # 用 csv.reader 解析派彩表格
 prize_rows = []
 if prize_csv_lines:
@@ -66,56 +79,51 @@ if prize_csv_lines:
         if row and len(row) == 3:
             prize_rows.append(row)
 
-# 下期開獎
-next_draw_date = ""
+# ===== 顯示最新一期開獎與派彩資訊 =====
+st.markdown('<div style="margin-bottom:2px"><h6 style="font-size:1.4rem; font-weight:bold;display:inline-block;">最新一期開獎</h6></div>', unsafe_allow_html=True)
+if latest_date and latest_numbers:
+    week = get_weekday(latest_date)
+    st.markdown(f"<div style='margin-bottom:2px'><span style='font-size:1.2rem; font-weight:bold;'>🛎️開獎日期：{latest_date} (星期{week})</span></div>", unsafe_allow_html=True)
+    balls_html = '<div style="display:flex;align-items:center;margin-bottom:2px;">'
+    for n in latest_numbers[:6]:
+        img_path = f"A_msk_balls_png/{int(n)}.png"
+        img_b64 = img_to_base64(img_path)
+        balls_html += f"<img src='data:image/png;base64,{img_b64}' alt='{int(n)}' style='width:32px;height:32px;margin-right:3px;'/>"
+    balls_html += "<span style='font-weight:bold; font-size:1.2em; margin:0 4px;'>+</span>"
+    img_path = f"A_msk_balls_png/{int(latest_numbers[6])}.png"
+    img_b64 = img_to_base64(img_path)
+    balls_html += f"<img src='data:image/png;base64,{img_b64}' alt='{int(latest_numbers[6])}' style='width:32px;height:32px;margin-right:3px;'/>"
+    balls_html += '</div>'
+    st.markdown(balls_html, unsafe_allow_html=True)
+    st.markdown("<hr style='margin:2px 0;border:0;border-top:1px solid #e0e0e0;'>", unsafe_allow_html=True)
+
+# 讀取下期開獎日期
 for line in lines:
     if line.startswith("開獎日期,"):
         next_draw_date = line.split(",",1)[1]
         break
-
-# ===== 頂部卡片區塊 =====
-st.markdown('<h6 style="font-size:1.8rem; font-weight:bold;">最新一期開獎</h6>', unsafe_allow_html=True)
-# 最新一期卡片
-if latest_date and latest_numbers:
-    balls_html = '<div class="balls-row">'
-    for n in latest_numbers[:6]:
-        img_path = f"A_msk_balls_png/{int(n)}.png"
-        img_b64 = img_to_base64(img_path)
-        balls_html += f"<img src='data:image/png;base64,{img_b64}' alt='{int(n)}'>"
-    balls_html += "<span style='font-weight:bold; font-size:1.2em; margin:0 4px;'>+</span>"
-    img_path = f"A_msk_balls_png/{int(latest_numbers[6])}.png"
-    img_b64 = img_to_base64(img_path)
-    balls_html += f"<img src='data:image/png;base64,{img_b64}' alt='{int(latest_numbers[6])}'>"
-    balls_html += '</div>'
-    week = get_weekday(latest_date)
-    st.markdown(f'''<div class=\"my-card\">
-        <h5>開獎日期：{latest_date} (星期{week})</h5>
-        {balls_html}
-    </div>''', unsafe_allow_html=True)
-
-# 下期開獎卡片（移到最新一期下方）
+    
+# 下期開獎日期顯示在最新一期開獎日期下方
 if next_draw_date:
-    # week2 = get_weekday(next_draw_date.split(' ')[0])
-    st.markdown(f'''<div class=\"my-card\">
-        <h5>下期開獎日期：{next_draw_date} </h5>
-    </div>''', unsafe_allow_html=True)
+    week = get_weekday(next_draw_date)
+    st.markdown(f"<div style='margin-bottom:2px'><span style='font-size:1.1rem;'> 👀 ⏰ 下期開獎日期：{next_draw_date} (星期{week})</span></div>", unsafe_allow_html=True)
+    st.markdown("<hr style='margin:2px 0;border:0;border-top:1px solid #e0e0e0;'>", unsafe_allow_html=True)
 
-# 派彩結果卡片（修正欄位分割）
-table_rows = []
-for r in prize_rows:
-    table_rows.append(f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td></tr>")
-table_html = "\n".join(table_rows)
-
-st.markdown(f'''
-<div class="my-card">
-    <h5>派彩結果</h5>
-    <table style="width:100%;font-size:1em;">
+# 派彩結果表格
+if prize_rows:
+    table_rows = []
+    for r in prize_rows:
+        table_rows.append(f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td></tr>")
+    table_html = "\n".join(table_rows)
+    st.markdown(f'''
+    <div style="margin-bottom:2px"><b>💰派彩結果</b></div>
+    <table style="width:100%;font-size:1em;margin-bottom:2px;">
         <tr><th>獎項</th><th>獎金</th><th>中獎注數</th></tr>
         {table_html}
     </table>
-</div>
-''', unsafe_allow_html=True)
-
+    <hr style='margin:2px 0;border:0;border-top:1px solid #e0e0e0;'>
+    ''', unsafe_allow_html=True)
+    
 
 # 開獎, 派彩, 期開獎日期，資訊在，PRIZE_RESULTS_PATH = PROJECT_ROOT / "A_msk_lottery_data_folder" / "M3_lotto_prize_results.csv"
 # 用卡片顯示
@@ -141,29 +149,29 @@ df = pd.read_csv(LOTTO_RESULTS_PATH, encoding="utf-8-sig")
 # 讓用戶選擇顯示期數（20 或 50 期）
 period_options = [20, 50] if len(df) >= 50 else [20]
 num_periods = st.selectbox("顯示最近幾期", period_options, index=0, format_func=lambda x: f"{x} 期")
+
 df2 = df.iloc[-num_periods:, 0:8].copy()  # 取最後N筆資料的前8欄
 # 重新命名欄位，配合下方卡片顯示
 df2.columns = ["ndate", "N1", "N2", "N3", "N4", "N5", "N6", "N7"]
 df2 = df2[::-1].reset_index(drop=True)  # 由新到舊排序
 df2.insert(0, "期數", range(len(df), len(df)-len(df2), -1))
 
-st.markdown('<h6 style="font-size:1.8rem; font-weight:bold;">開獎紀錄</h6>', unsafe_allow_html=True)
-cols_per_row = 1  # 每行顯示幾張卡片
+# 顯示開獎紀錄 球圖顯示
+st.markdown('<div style="margin-bottom:2px"><h6 style="font-size:1.2rem; font-weight:bold;display:inline-block;">過往開獎紀錄</h6></div>', unsafe_allow_html=True)
 for i, (index, row_data) in enumerate(df2.iterrows()):
-    balls_html = '<div class="balls-row">'
+    st.markdown(f"<div style='margin-bottom:2px'><b>[第{row_data['期數']}期] 開獎日期：{row_data['ndate']}</b></div>", unsafe_allow_html=True)
+    balls_html = '<div style="display:flex;align-items:center;margin-bottom:2px;">'
     for n in [row_data['N1'], row_data['N2'], row_data['N3'], row_data['N4'], row_data['N5'], row_data['N6']]:
         img_path = f"A_msk_balls_png/{int(n)}.png"
         img_b64 = img_to_base64(img_path)
-        balls_html += f"<img src='data:image/png;base64,{img_b64}' alt='{int(n)}'>"
+        balls_html += f"<img src='data:image/png;base64,{img_b64}' alt='{int(n)}' style='width:32px;height:32px;margin-right:3px;'/>"
     balls_html += "<span style='font-weight:bold; font-size:1.2em; margin:0 4px;'>+</span>"
     img_path = f"A_msk_balls_png/{int(row_data['N7'])}.png"
     img_b64 = img_to_base64(img_path)
-    balls_html += f"<img src='data:image/png;base64,{img_b64}' alt='{int(row_data['N7'])}'>"
+    balls_html += f"<img src='data:image/png;base64,{img_b64}' alt='{int(row_data['N7'])}' style='width:32px;height:32px;margin-right:3px;'/>"
     balls_html += '</div>'
-    st.markdown(f'''<div class="my-card">
-        <h6>[第{row_data['期數']}期] 開獎日期：{row_data["ndate"]}</h6>
-        {balls_html}
-    </div>''', unsafe_allow_html=True)
+    st.markdown(balls_html, unsafe_allow_html=True)
+    st.markdown("<hr style='margin:2px 0;border:0;border-top:1px solid #e0e0e0;'>", unsafe_allow_html=True)
         
      
 #     # 注意：如果你在 div 內部需要 Streamlit 原生元件（如按鈕），

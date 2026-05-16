@@ -244,6 +244,20 @@ def load_predictions_for_date(path: Path, target_date: str):
 
 
 def render_home_page():
+
+    # 加入自訂 CSS，縮小行距與分隔線間距
+    st.markdown("""
+        <style>
+        .stMarkdown p, .stMarkdown h6, .stMarkdown h7 {
+            margin-bottom: 4px !important;
+            margin-top: 4px !important;
+        }
+        hr {
+            margin-top: 4px !important;
+            margin-bottom: 4px !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
     get_bet_draw = int(st.session_state.get("setting_get_BetDraw", 2))
 
     latest_date_raw, latest_numbers_raw, next_draw_raw = load_prize_result_info(PRIZE_RESULTS_PATH)
@@ -260,19 +274,16 @@ def render_home_page():
     period_display = f"（{period}）" if period else ""
     
     # st.write(f"1.最新一期開獎結果 {period_display}")
-    st.markdown('<h6 style="font-size:1.4rem; font-weight:bold;">1. 最新一期開獎</h6>', unsafe_allow_html=True)
-    # 如何將文字字變大並加粗？可以使用 HTML 標籤，例如 <h6> 或 <span> 搭配 CSS 樣式。
-    st.markdown(f"<p style='font-size:1.2rem; font-weight:bold;'>開獎日期：{latest_date_display}</p>", unsafe_allow_html=True)
-    # 球圖靠左顯示。
-    st.markdown("<div style='text-align: left;'>", unsafe_allow_html=True)
+
+    st.markdown('<div style="margin-bottom:2px"><h6 style="font-size:1.4rem; font-weight:bold;display:inline-block;">1.🏆 最新一期開獎</h6></div>', unsafe_allow_html=True)
+    st.markdown(f"<div style='margin-bottom:2px'><span style='font-size:1.2rem; font-weight:bold;'>開獎日期：{latest_date_display}</span></div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: left; margin-bottom:2px'>", unsafe_allow_html=True)
     render_balls(latest_numbers[:7])
     st.markdown("</div>", unsafe_allow_html=True)
-    
-    #取清派彩表格
-    st.markdown("---")
+    st.markdown("<hr style='margin:2px 0;border:0;border-top:1px solid #e0e0e0;'>", unsafe_allow_html=True)
     
     # st.write(f"2.下期種子投注預測")
-    st.markdown('<h6 style="font-size:1.4rem; font-weight:bold;">2. 下期種子投注預測</h6>', unsafe_allow_html=True)
+    st.markdown('<h6 style="font-size:1.4rem; font-weight:bold;">2.👍 下期種子投注預測</h6>', unsafe_allow_html=True)
     st.markdown(f"<p style='font-size:1.2rem; font-weight:bold;'>投注日期：{next_draw_date_display}</p>", unsafe_allow_html=True)
     pred_rows = load_next_bet_draw_records(NEXT_BET_DRAW_RECORD_PATH)
     if pred_rows:
@@ -284,8 +295,8 @@ def render_home_page():
     # 加入種子過去投注紀錄及檢對中獎結果
     st.markdown("---")
     # st.write("3.種子過去投注紀錄（核對中獎結果）")
-    st.markdown('<h6 style="font-size:1.4rem; font-weight:bold;">3. 種子投注過往紀錄</h6>', unsafe_allow_html=True)
-    st.markdown('<h7 style="font-size:1.2rem; font-weight:bold;"> (核對中獎結果）</h7>', unsafe_allow_html=True)
+    st.markdown('<div style="margin-bottom:2px"><h6 style="font-size:1.4rem; font-weight:bold;display:inline-block;">3.✌️ 種子投注過往紀錄</h6></div>', unsafe_allow_html=True)
+    st.markdown('<div style="margin-bottom:2px"><h7 style="font-size:1.2rem; font-weight:bold;display:inline-block;"> 👀 (核對中獎結果）</h7></div>', unsafe_allow_html=True)
     # 讀取開獎號碼資料（欄位名稱與 B01_check_lottoWin.py 一致）
     lotto_results = {}
     with LOTTO_RESULTS_PATH.open("r", encoding="utf-8-sig") as f:
@@ -297,6 +308,7 @@ def render_home_page():
             if date and all(1 <= n <= 49 for n in nums) and 1 <= special <= 49:
                 lotto_results[date.strip()] = {"nums": set(nums), "special": special}
 
+    st.markdown("---")
     # 讀取投注紀錄，並依日期倒序排列
     bet_records = []
     with BET_RECORDS_PATH.open("r", encoding="utf-8-sig") as f:
@@ -316,12 +328,13 @@ def render_home_page():
     bet_amount = 10
 
 
+
     for rec in bet_records:
         date = rec["date"]
         nums = rec["nums"]
         total_bet += bet_amount
         total_count += 1
-        st.markdown(f"**日期：{date} 每注：$10**")
+        st.markdown(f"<div style='margin-bottom:2px'><b>日期：</b>{date}    <b>每注：</b>${bet_amount}</div>", unsafe_allow_html=True)
         # 判斷是否已開獎
         if date in lotto_results:
             result = lotto_results[date]
@@ -329,7 +342,7 @@ def render_home_page():
             win_special = result["special"] if result["special"] in nums else None
             win_score = len(win_main_set) + (0.5 if win_special else 0)
             # 判斷獎項
-            prize = "未中獎"
+            prize = "0"
             payout = 0
             for k in sorted(PRIZE_TABLE.keys(), reverse=True):
                 if win_score >= k:
@@ -357,16 +370,25 @@ def render_home_page():
             if win_special:
                 highlight["special"] = win_special
             render_balls(nums, label="投注號：", highlight=highlight)
-            st.write(f"中獎：{win_score} 球 / 獎項：{prize} / 派彩：${payout}")
+            # 中獎行
+            if win_score == 0:
+                st.markdown(f"<div style='margin-bottom:2px'>**中 0 球 |  獎項: {prize} | 派彩:$ {payout} -- 😊**</div>", unsafe_allow_html=True)
+            elif win_score >= 1 and win_score <= 2:
+                st.markdown(f"<div style='margin-bottom:2px'>**中 1-2 球 |  獎項: {prize} | 派彩:$ {payout} -- ✅**</div>", unsafe_allow_html=True)
+            elif win_score == 3:
+                st.markdown(f"<div style='margin-bottom:2px'>**中 3 球 |  獎項: {prize} | 派彩:$ {payout} --  ❤️**</div>", unsafe_allow_html=True)
+            elif win_score > 3:
+                st.markdown(f"<div style='margin-bottom:2px'>**中 > 3 球 |  獎項:{prize} | 派彩:$ {payout} -- 🏆🏆🏆**</div>", unsafe_allow_html=True)
         else:
             render_balls(nums, label="投注號：", highlight={})
-            st.write("中獎：未開獎 / 獎項：- / 派彩：-")
+            st.markdown("<div style='margin-bottom:2px'>**中獎：👀 未開獎 👀 | 獎項：- | 派彩：-**</div>", unsafe_allow_html=True)
         # 每筆資料下方加分隔線
-        st.markdown("<hr style='margin:8px 0;border:0;border-top:1px solid #e0e0e0;'>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin:2px 0;border:0;border-top:1px solid #e0e0e0;'>", unsafe_allow_html=True)
 
     st.markdown("---")
-    st.write(f"投注注數：{total_count} 注 * 每注 $10 = 投注總金額 ${total_bet}")
-    st.write(f"中獎注數：{win_count} 注，派彩總金額 = ${total_win}")
-    st.write(f"損益金額 = {total_win - total_bet:+} $")
+    st.write(f"投注注數：{total_count} 注 * 每注 $10")
+    st.write(f"投注總金額 💰${total_bet}")
+    st.write(f"中獎注數：{win_count} 注，派彩總金額 = 💰${total_win}")
+    st.write(f"損益金額 = 💰${total_win - total_bet:+} ")
 if __name__ == "__main__":
     render_home_page()

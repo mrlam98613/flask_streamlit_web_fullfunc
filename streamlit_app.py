@@ -34,3 +34,5 @@ pg = st.navigation(pages, position="top")
 
 # # 3. 執行頁面
 pg.run()
+
+# streamlit run streamlit_app.py
