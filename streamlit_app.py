@@ -4,14 +4,14 @@ from css import navigation_center_style
 
 # 1. 定義頁面
 pages = {
-    # "RBG預測": [
-    #     st.Page("pages/2_verifyPrize_results.py", title="核對預測", icon="🏠"),
+    # "主頁": [
+    #     st.Page("pages/home.py", title="種子投注法說明", icon="🏠"),
     # ],
-    "下期預測": [
-        st.Page("pages/0_predict_nextdraw.py", title="下期預測", icon="🏆"),
+    "種子投注法": [
+        st.Page("pages/0_predict_nextdraw.py", title="系統下期預測", icon="🏆"),
     ],
-    "開獎紀錄": [
-        st.Page("pages/1_lotto_results.py", title="最新開獎", icon="❤️"),
+    "最新開獎紀錄": [
+        st.Page("pages/1_lotto_results.py", title="最新及過往開獎紀錄", icon="❤️"),
         
     ],
     "會員登入/註冊": [
