@@ -25,5 +25,4 @@ RUN crontab /tmp/crontab.txt
 EXPOSE 8501 8080
 
 # 啟動 cron 和 Streamlit
-CMD cron && exec streamlit run streamlit_app.py --server.port=8501 --server.address=0.0.0.0
-
+CMD service cron start && exec streamlit run streamlit_app.py --server.port=8501 --server.address=0.0.0.0
