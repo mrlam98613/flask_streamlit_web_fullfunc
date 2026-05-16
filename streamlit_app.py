@@ -11,7 +11,7 @@ pages = {
         st.Page("pages/0_predict_nextdraw.py", title="下期預測", icon="🏆"),
     ],
     "開獎紀錄": [
-        st.Page("pages/1_card_lottoResults.py", title="最新開獎", icon="❤️"),
+        st.Page("pages/1_lotto_results.py", title="最新開獎", icon="❤️"),
         
     ],
     "會員登入/註冊": [

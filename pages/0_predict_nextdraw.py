@@ -275,16 +275,16 @@ def render_home_page():
     
     # st.write(f"1.最新一期開獎結果 {period_display}")
 
-    st.markdown('<div style="margin-bottom:2px"><h6 style="font-size:1.4rem; font-weight:bold;display:inline-block;">1.🏆 最新一期開獎</h6></div>', unsafe_allow_html=True)
-    st.markdown(f"<div style='margin-bottom:2px'><span style='font-size:1.2rem; font-weight:bold;'>開獎日期：{latest_date_display}</span></div>", unsafe_allow_html=True)
-    st.markdown("<div style='text-align: left; margin-bottom:2px'>", unsafe_allow_html=True)
+    st.markdown('<div style="margin-bottom:12px;margin-top:8px;"><h6 style="font-size:1.4rem; font-weight:bold;display:inline-block;">1.🏆 最新一期開獎</h6></div>', unsafe_allow_html=True)
+    st.markdown(f"<div style='margin-bottom:8px'><span style='font-size:1.2rem; font-weight:bold;'>開獎日期：{latest_date_display}</span></div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: left; margin-bottom:8px'>", unsafe_allow_html=True)
     render_balls(latest_numbers[:7])
     st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("<hr style='margin:2px 0;border:0;border-top:1px solid #e0e0e0;'>", unsafe_allow_html=True)
+    st.markdown("<hr style='margin:24px 0 24px 0;border:0;border-top:2px solid #888;'>", unsafe_allow_html=True)
     
     # st.write(f"2.下期種子投注預測")
-    st.markdown('<h6 style="font-size:1.4rem; font-weight:bold;">2.👍 下期種子投注預測</h6>', unsafe_allow_html=True)
-    st.markdown(f"<p style='font-size:1.2rem; font-weight:bold;'>投注日期：{next_draw_date_display}</p>", unsafe_allow_html=True)
+    st.markdown('<div style="margin-bottom:12px;margin-top:8px;"><h6 style="font-size:1.4rem; font-weight:bold;display:inline-block;">2.👍 下期種子投注預測</h6></div>', unsafe_allow_html=True)
+    st.markdown(f"<div style='margin-bottom:8px'><span style='font-size:1.2rem; font-weight:bold;'>投注日期：{next_draw_date_display}</span></div>", unsafe_allow_html=True)
     pred_rows = load_next_bet_draw_records(NEXT_BET_DRAW_RECORD_PATH)
     if pred_rows:
         for idx, nums in enumerate(pred_rows, start=1):
@@ -293,10 +293,10 @@ def render_home_page():
         st.info("目前沒有找到 nextBetDraw_record.csv 內的預測號碼。")
 
     # 加入種子過去投注紀錄及檢對中獎結果
-    st.markdown("---")
+    st.markdown("<hr style='margin:24px 0 24px 0;border:0;border-top:2px solid #888;'>", unsafe_allow_html=True)
     # st.write("3.種子過去投注紀錄（核對中獎結果）")
     st.markdown('<div style="margin-bottom:2px"><h6 style="font-size:1.4rem; font-weight:bold;display:inline-block;">3.✌️ 種子投注過往紀錄</h6></div>', unsafe_allow_html=True)
-    st.markdown('<div style="margin-bottom:2px"><h7 style="font-size:1.2rem; font-weight:bold;display:inline-block;"> 👀 (核對中獎結果）</h7></div>', unsafe_allow_html=True)
+    st.markdown('<div style="margin-bottom:2px"><h7 style="font-size:1.2rem; font-weight:bold;display:inline-block;"> 👀 (核對系統過去預測結果 ⭕️ 中正號 🔲 中特號 )</h7></div>', unsafe_allow_html=True)
     # 讀取開獎號碼資料（欄位名稱與 B01_check_lottoWin.py 一致）
     lotto_results = {}
     with LOTTO_RESULTS_PATH.open("r", encoding="utf-8-sig") as f:
@@ -334,7 +334,14 @@ def render_home_page():
         nums = rec["nums"]
         total_bet += bet_amount
         total_count += 1
-        st.markdown(f"<div style='margin-bottom:2px'><b>日期：</b>{date}    <b>每注：</b>${bet_amount}</div>", unsafe_allow_html=True)
+        # st.markdown(f"<div style='margin-bottom:2px'><span style='font-weight:bold;'>日期：{date}每注：$ {bet_amount}</span></div>", unsafe_allow_html=True)
+        st.markdown(
+        f"<div style='margin-bottom:2px'>"
+        f"<span style='font-weight:bold; margin-right:32px;'>日期：{date}</span>"
+        f"<span style='font-weight:bold;'>每注：$ {bet_amount}</span>"
+        f"</div>",
+        unsafe_allow_html=True
+        )
         # 判斷是否已開獎
         if date in lotto_results:
             result = lotto_results[date]
@@ -372,16 +379,18 @@ def render_home_page():
             render_balls(nums, label="投注號：", highlight=highlight)
             # 中獎行
             if win_score == 0:
-                st.markdown(f"<div style='margin-bottom:2px'>**中 0 球 |  獎項: {prize} | 派彩:$ {payout} -- 😊**</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='margin-bottom:2px'><span style='font-weight:bold;'> 中 = {win_score} 球 |  獎項: {prize} | 派彩:$ {payout} --  😊</span></div>", unsafe_allow_html=True)
             elif win_score >= 1 and win_score <= 2:
-                st.markdown(f"<div style='margin-bottom:2px'>**中 1-2 球 |  獎項: {prize} | 派彩:$ {payout} -- ✅**</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='margin-bottom:2px'><span style='font-weight:bold;'> 中 = {win_score} 球 |  獎項: {prize} | 派彩:$ {payout} --  ✅</span></div>", unsafe_allow_html=True)
             elif win_score == 3:
-                st.markdown(f"<div style='margin-bottom:2px'>**中 3 球 |  獎項: {prize} | 派彩:$ {payout} --  ❤️**</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='margin-bottom:2px'><span style='font-weight:bold;'> 中 = {win_score} 球 |  獎項: {prize} | 派彩:$ {payout} --  ❤️</span></div>", unsafe_allow_html=True)
             elif win_score > 3:
-                st.markdown(f"<div style='margin-bottom:2px'>**中 > 3 球 |  獎項:{prize} | 派彩:$ {payout} -- 🏆🏆🏆**</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='margin-bottom:2px'><span style='font-weight:bold;'> 中 > {win_score} 球 |  獎項:{prize} | 派彩:$ {payout} --  🏆🏆🏆</span></div>", unsafe_allow_html=True)
         else:
             render_balls(nums, label="投注號：", highlight={})
-            st.markdown("<div style='margin-bottom:2px'>**中獎：👀 未開獎 👀 | 獎項：- | 派彩：-**</div>", unsafe_allow_html=True)
+            st.markdown("---")
+            st.markdown("<div style='margin-bottom:2px'><span style='font-weight:bold;'> | 最新投注預測： 未開獎 👀 | </span></div>", unsafe_allow_html=True)
+            st.markdown("---")
         # 每筆資料下方加分隔線
         st.markdown("<hr style='margin:2px 0;border:0;border-top:1px solid #e0e0e0;'>", unsafe_allow_html=True)
 
@@ -390,5 +399,6 @@ def render_home_page():
     st.write(f"投注總金額 💰${total_bet}")
     st.write(f"中獎注數：{win_count} 注，派彩總金額 = 💰${total_win}")
     st.write(f"損益金額 = 💰${total_win - total_bet:+} ")
+    st.markdown("---")
 if __name__ == "__main__":
     render_home_page()
