@@ -7,6 +7,9 @@ WORKDIR /app
 # 安裝必要套件（包括 cron）
 RUN apt-get update && apt-get install -y curl cron && rm -rf /var/lib/apt/lists/*
 
+ENV TZ=Asia/Hong_Kong
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 # 複製 requirements 並安裝 Python 套件
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
