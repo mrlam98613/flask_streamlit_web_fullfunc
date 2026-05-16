@@ -575,7 +575,7 @@ def _print_strategy_info():
 
 
 def main():
-    os.system('clear')
+    # os.system('clear')
     print('\n')
     df_all = load_draw_data_func()
     valid_next_draw_date, week = res_func_marksix_next_BetDate.main()

@@ -24,9 +24,9 @@ import random
 import res_func_num_convert_RBG_Dict
 import res_func_marksix_next_BetDate
 
-def clear_screen():
-    """清除終端機畫面"""
-    os.system("clear")
+# def clear_screen():
+#     """清除終端機畫面"""
+#     os.system("clear")
 
 current_dir = Path(__file__).resolve().parent
 

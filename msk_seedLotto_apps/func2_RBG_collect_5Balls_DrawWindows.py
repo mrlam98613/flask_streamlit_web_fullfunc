@@ -1,6 +1,5 @@
 import pandas as pd 
 from pathlib import Path
-import os
 import res_func_num_convert_RBG_Dict
 import res_func_marksix_next_BetDate
 
@@ -13,8 +12,8 @@ import res_func_marksix_next_BetDate
 """
 
 
-def clear_screen():
-    os.system("clear")
+# def clear_screen():
+    # os.system("clear")
 
 
 # 取得目前檔案所在目錄
