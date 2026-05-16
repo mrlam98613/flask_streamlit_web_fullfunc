@@ -211,7 +211,7 @@ def predict_next_draw_intervals(window_list=None, alpha=1.0, anchor_date=None):
     
     
 def main():
-    clear_screen()
+    # clear_screen()
     predict_next_draw_intervals(window_list=[8], alpha=1.0)
     return
 
