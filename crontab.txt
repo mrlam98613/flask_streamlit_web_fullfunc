@@ -11,8 +11,8 @@
 
 # zeabur AI 修改。
 #---- 每 5 分鐘執行一次 (A0_main.py 下載)
-*/30 * * * * cd /app/Z1_lotto_2026_download_project && /usr/local/bin/python3 A0_main.py >> /var/log/cron/msk-lotto.log 2>&1
+*/5 * * * * cd /app/Z3_ZH_lotto_2026_crawler && /usr/local/bin/python3 A0_main.py >> /var/log/cron/msk-lotto.log 2>&1
 
 # ── A1 (預測投注)：
 #---- 每 7 分鐘執行一次（A1_seedBet_main.py ）
-*/33 * * * * cd /app/msk_seedLotto_apps && /usr/local/bin/python3 A1_seedBet_main.py >> /var/log/cron/msk-seed.log 2>&1
+*/7 * * * * cd /app/msk_seedLotto_apps && /usr/local/bin/python3 A1_seedBet_main.py >> /var/log/cron/msk-seed.log 2>&1
