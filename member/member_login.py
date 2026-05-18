@@ -27,6 +27,7 @@ from db import (  # noqa: E402
 ADMIN_EMAIL = "mrlam98613@gmail.com"
 ADMIN_PHONE = "98687989"
 ADMIN_PASSWORD = "98687989"
+AUTH_TABS = ["會員登入", "會員註冊", "忘記密碼"]
 
 
 def init_login_state() -> None:
@@ -51,6 +52,19 @@ def switch_to_bet_center() -> None:
 
     st.session_state["redirect_to_member_bet_center"] = True
     st.rerun()
+
+
+def switch_auth_tab(tab_name: str) -> None:
+    """安排下一次 rerun 切換登入頁分頁。"""
+
+    st.session_state["member_auth_tab"] = tab_name
+    st.session_state["member_auth_tab_pending"] = tab_name
+
+
+def sync_auth_tab_from_widget() -> None:
+    """把 radio widget 的選擇同步到登入頁目前分頁。"""
+
+    st.session_state["member_auth_tab"] = st.session_state["member_auth_tab_widget"]
 
 
 def render_admin_member_manager() -> None:
@@ -160,7 +174,7 @@ def render_register_tab() -> None:
             add_member(reg_email, reg_phone, hash_password(reg_password), 0)
             init_member_bet_db(reg_email)
             st.session_state["member_login_notice"] = "註冊成功，請使用新帳號登入。"
-            st.session_state["member_auth_tab"] = "會員登入"
+            switch_auth_tab("會員登入")
             st.rerun()
 
 
@@ -185,7 +199,7 @@ def render_forgot_password_tab() -> None:
             st.warning("此信箱尚未註冊。")
         elif reset_password(forgot_email, forgot_phone, hash_password(new_password)):
             st.session_state["member_login_notice"] = "密碼重設成功，請重新登入。"
-            st.session_state["member_auth_tab"] = "會員登入"
+            switch_auth_tab("會員登入")
             st.rerun()
         else:
             st.error("信箱或手機號碼錯誤，請確認輸入。")
@@ -197,11 +211,17 @@ def main() -> None:
     init_login_state()
 
     st.session_state.setdefault("member_auth_tab", "會員登入")
+    pending_tab = st.session_state.pop("member_auth_tab_pending", None)
+    if pending_tab in AUTH_TABS:
+        st.session_state["member_auth_tab_widget"] = pending_tab
+
     current_tab = st.radio(
         "會員功能",
-        ["會員登入", "會員註冊", "忘記密碼"],
+        AUTH_TABS,
+        index=AUTH_TABS.index(st.session_state["member_auth_tab"]),
         horizontal=True,
-        key="member_auth_tab",
+        key="member_auth_tab_widget",
+        on_change=sync_auth_tab_from_widget,
         label_visibility="collapsed",
     )
 
