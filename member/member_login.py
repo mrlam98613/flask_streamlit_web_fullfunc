@@ -1,172 +1,216 @@
-import sqlite3
-
-# -------- import 
-import streamlit as st
-import hashlib
-
-# 加入 member.db path 模組，確保資料庫檔案在正確位置
-# from pathlib import Path
-
-# PROJECT_ROOT = Path(__file__).resolve().parent
-# DB_PATH = PROJECT_ROOT / "member" / "members.db"
-
+from pathlib import Path
 import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from db import init_db, add_member, get_member
 
-def get_all_members():
-    conn = sqlite3.connect("members.db")
-    cur = conn.cursor()
-    cur.execute('SELECT id, email, phone, is_admin FROM members')
-    rows = cur.fetchall()
-    conn.close()
-    return rows
-
-def delete_member(member_id):
-    conn = sqlite3.connect("members.db")
-    cur = conn.cursor()
-    cur.execute('DELETE FROM members WHERE id = ?', (member_id,))
-    conn.commit()
-    conn.close()
-
-def update_member(member_id, new_email, new_phone):
-    conn = sqlite3.connect("members.db")
-    cur = conn.cursor()
-    cur.execute('UPDATE members SET email = ?, phone = ? WHERE id = ?', (new_email, new_phone, member_id))
-    conn.commit()
-    conn.close()
-    
+import streamlit as st
 
 
-# --- 這裡設定第一個 admin 帳號 ---
-ADMIN_EMAIL = "mrlam98613@gmail.com"  # 請修改為你的管理員信箱
-ADMIN_PHONE = "98687989"         # 請修改為你的管理員手機
-ADMIN_PASSWORD = "98687989"        # 請修改為你的管理員密碼
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-def create_first_admin():
-	if not get_member(ADMIN_EMAIL):
-		add_member(ADMIN_EMAIL, ADMIN_PHONE, hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest(), 1)
-
-# tab1:會員登入 tab2:會員註冊 tab3:忘記密碼。Tab 分頁
-# ...existing code...
-
-def hash_password(password):
-	return hashlib.sha256(password.encode()).hexdigest()
-
-
-# init_db()  # 確保資料庫和表格已建立
-init_db()
-# create_first_admin()  # 確保第一個 admin 帳號存在
-create_first_admin()
+from db import (  # noqa: E402
+    add_member,
+    delete_member,
+    ensure_first_admin,
+    get_all_members,
+    get_member,
+    hash_password,
+    init_db,
+    init_member_bet_db,
+    is_valid_email,
+    is_valid_local_phone,
+    reset_password,
+    update_member,
+)
 
 
+ADMIN_EMAIL = "mrlam98613@gmail.com"
+ADMIN_PHONE = "98687989"
+ADMIN_PASSWORD = "98687989"
 
-tabs = st.tabs(["會員登入", "會員註冊", "忘記密碼"])
 
-with tabs[0]:
+def init_login_state() -> None:
+    """初始化全站登入狀態。"""
+
+    st.session_state.setdefault("login_state", None)
+    st.session_state.setdefault("login_email_val", None)
+    st.session_state.setdefault("login_member_id", None)
+
+
+def set_logged_in(member) -> None:
+    """登入成功後，把會員資料寫入 session state。"""
+
+    st.session_state["login_member_id"] = member[0]
+    st.session_state["login_email_val"] = member[1]
+    st.session_state["login_state"] = "admin" if int(member[4]) == 1 else "user"
+    init_member_bet_db(member[1])
+
+
+def switch_to_bet_center() -> None:
+    """登入成功後直接前往會員投注中心。"""
+
+    st.session_state["redirect_to_member_bet_center"] = True
+    st.rerun()
+
+
+def render_admin_member_manager() -> None:
+    """管理員登入後可查看、修改、刪除會員。"""
+
+    st.subheader("會員管理")
+    members = get_all_members()
+
+    if not members:
+        st.info("目前沒有會員資料。")
+        return
+
+    for member_id, email, phone, is_admin, created_at in members:
+        cols = st.columns([2.6, 1.4, 1.2, 1, 1])
+        cols[0].write(email)
+        cols[1].write(phone)
+        cols[2].write("管理員" if is_admin else "普通會員")
+
+        if email == ADMIN_EMAIL:
+            cols[3].caption("保留")
+            cols[4].caption("-")
+            continue
+
+        if cols[3].button("修改", key=f"edit_member_{member_id}"):
+            st.session_state[f"editing_member_{member_id}"] = True
+
+        if cols[4].button("刪除", key=f"delete_member_{member_id}"):
+            delete_member(member_id)
+            st.warning("已刪除會員。")
+            st.rerun()
+
+        if st.session_state.get(f"editing_member_{member_id}"):
+            with st.container(border=True):
+                new_email = st.text_input("新信箱", value=email, key=f"email_{member_id}")
+                new_phone = st.text_input("新手機號碼", value=phone, key=f"phone_{member_id}")
+                if st.button("確認修改", key=f"save_member_{member_id}"):
+                    if not is_valid_email(new_email):
+                        st.error("Email 格式不正確。")
+                    elif not is_valid_local_phone(new_phone):
+                        st.error("手機號碼請輸入 8 位數字，不需要地區號。")
+                    else:
+                        update_member(member_id, new_email, new_phone)
+                        st.success("會員資料已更新。")
+                        st.session_state.pop(f"editing_member_{member_id}", None)
+                        st.rerun()
+
+
+def render_login_tab() -> None:
     st.header("會員登入")
+    st.markdown(
+        """
+        <style>
+        input[aria-label="登入密碼"] {
+            autocomplete: current-password;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    notice = st.session_state.pop("member_login_notice", None)
+    if notice:
+        st.success(notice)
+
     email = st.text_input("信箱", key="login_email")
-    password = st.text_input("密碼", type="password", key="login_pwd")
-    admin_login = st.checkbox("管理員登入", key="login_admin")
-    if 'login_state' not in st.session_state:
-        st.session_state['login_state'] = None
-    if 'login_email_val' not in st.session_state:
-        st.session_state['login_email_val'] = None
-    if st.button("登入", key="login_btn"):
+    password = st.text_input("登入密碼", type="password", key="member_login_password")
+
+    if st.button("登入", key="login_btn", type="primary"):
+        email = email.strip().lower()
+
+        if not is_valid_email(email):
+            st.error("Email 格式不正確。")
+            return
+
         member = get_member(email)
         if member and member[3] == hash_password(password):
-            if admin_login:
-                if member[4] == 1:
-                    st.success(f"管理員登入成功，{email}")
-                    st.session_state["login_state"] = "admin"
-                    st.session_state["login_email_val"] = email
-                else:
-                    st.error("非管理員帳號")
-            else:
-                st.success(f"歡迎回來，{email}")
-                st.session_state["login_state"] = "user"
-                st.session_state["login_email_val"] = email
+            set_logged_in(member)
+            st.success(f"登入成功，{email}")
+            switch_to_bet_center()
         else:
-            st.error("帳號或密碼錯誤")
+            st.error("帳號或密碼錯誤。")
 
-    # 管理員登入後顯示會員表格
     if st.session_state.get("login_state") == "admin":
-        st.subheader("會員管理")
-        members = get_all_members()
-        for m in members:
-            col1, col2, col3, col4, col5 = st.columns([2,2,2,1,1])
-            col1.write(m[1])  # email
-            col2.write(m[2])  # phone
-            col3.write("管理員" if m[3] else "普通會員")
-            if m[1] != ADMIN_EMAIL:
-                if col4.button("修改", key=f"edit_{m[0]}"):
-                    new_email = st.text_input(f"新信箱_{m[0]}", value=m[1], key=f"edit_email_{m[0]}")
-                    new_phone = st.text_input(f"新手機_{m[0]}", value=m[2], key=f"edit_phone_{m[0]}")
-                    if st.button(f"確認修改_{m[0]}"):
-                        update_member(m[0], new_email, new_phone)
-                        st.success("修改成功，請重新整理頁面！")
-                if col5.button("刪除", key=f"del_{m[0]}"):
-                    delete_member(m[0])
-                    st.warning("已刪除會員，請重新整理頁面！")
+        render_admin_member_manager()
 
-with tabs[1]:
+
+def render_register_tab() -> None:
     st.header("會員註冊")
+
     reg_email = st.text_input("註冊信箱", key="reg_email")
-    reg_phone = st.text_input("手機號碼", key="reg_phone")
-    reg_password = st.text_input("密碼 (6-12字元)", type="password", key="reg_pwd")
-    if st.button("註冊", key="reg_btn"):
-        if len(reg_password) < 6 or len(reg_password) > 12:
-            st.warning("密碼長度需 6-12 字元")
-        elif not reg_email or not reg_phone:
-            st.warning("信箱與手機號碼皆必填")
+    reg_phone = st.text_input("手機號碼（8 位數字，不用地區號）", key="reg_phone")
+    reg_password = st.text_input("密碼（6-12 字元）", type="password", key="reg_pwd")
+
+    if st.button("註冊", key="reg_btn", type="primary"):
+        reg_email = reg_email.strip().lower()
+        reg_phone = reg_phone.strip()
+
+        if not is_valid_email(reg_email):
+            st.warning("Email 格式不正確。")
+        elif not is_valid_local_phone(reg_phone):
+            st.warning("手機號碼請輸入 8 位數字，不需要地區號。")
+        elif len(reg_password) < 6 or len(reg_password) > 12:
+            st.warning("密碼長度需 6-12 字元。")
         elif get_member(reg_email):
-            st.warning("此信箱已註冊")
+            st.warning("此信箱已註冊。")
         else:
             add_member(reg_email, reg_phone, hash_password(reg_password), 0)
-            st.success("註冊成功，請登入！")
+            init_member_bet_db(reg_email)
+            st.session_state["member_login_notice"] = "註冊成功，請使用新帳號登入。"
+            st.session_state["member_auth_tab"] = "會員登入"
+            st.rerun()
 
-with tabs[2]:
+
+def render_forgot_password_tab() -> None:
     st.header("忘記密碼")
+
     forgot_email = st.text_input("註冊信箱", key="forgot_email")
-    forgot_phone = st.text_input("手機號碼", key="forgot_phone")
-    new_password = st.text_input("新密碼 (6-12字元)", type="password", key="forgot_pwd")
-    if st.button("重設密碼", key="forgot_btn"):
-        if len(new_password) < 6 or len(new_password) > 12:
-            st.warning("密碼長度需 6-12 字元")
-        elif not forgot_email or not forgot_phone:
-            st.warning("信箱與手機號碼皆必填")
+    forgot_phone = st.text_input("手機號碼（8 位數字，不用地區號）", key="forgot_phone")
+    new_password = st.text_input("新密碼（6-12 字元）", type="password", key="forgot_pwd")
+
+    if st.button("重設密碼", key="forgot_btn", type="primary"):
+        forgot_email = forgot_email.strip().lower()
+        forgot_phone = forgot_phone.strip()
+
+        if not is_valid_email(forgot_email):
+            st.warning("Email 格式不正確。")
+        elif not is_valid_local_phone(forgot_phone):
+            st.warning("手機號碼請輸入 8 位數字，不需要地區號。")
+        elif len(new_password) < 6 or len(new_password) > 12:
+            st.warning("密碼長度需 6-12 字元。")
         elif not get_member(forgot_email):
-            st.warning("此信箱尚未註冊")
+            st.warning("此信箱尚未註冊。")
+        elif reset_password(forgot_email, forgot_phone, hash_password(new_password)):
+            st.session_state["member_login_notice"] = "密碼重設成功，請重新登入。"
+            st.session_state["member_auth_tab"] = "會員登入"
+            st.rerun()
         else:
-            from db import reset_password
-            if reset_password(forgot_email, forgot_phone, hash_password(new_password)):
-                st.success("密碼重設成功，請重新登入！")
-            else:
-                st.error("信箱或手機號碼錯誤，請確認輸入")
-
-# -------------------------------------------------｜
-# tab1:會員登入 tab2:會員註冊 tab3:忘記密碼。Tab 分頁
-# 普通會員登入
-# mPage1:系統下期預測 
-
-# mPage2:會員新增投注
-# mPage3:會員投注紀錄
-
-# 管理員登入，(包括普通會員功能)
-# mPage1:系統下期預測 
-# mPage2:會員新增投注
-# mPage3:會員投注紀錄
-# aPage1:會員管理新增/刪除/修改
-# aPage2:系統預測管理
-
-# 新會員註冊
-# rPage1: ( 輸入信箱 + 輸入手機號碼 ) 必要 2 樣齊。
-# rPage2: 1.系統產生密碼，2.自定密碼，最少 6-12 個數字就可。
-# rPage3: 註冊成功
+            st.error("信箱或手機號碼錯誤，請確認輸入。")
 
 
-# 忘記密碼
-# fPage1:輸入註冊信箱 + 輸入手機號碼
-# fPage2:申請重設密碼 --> 發送按鈕
-# fPage3: 系統確認 (email + 手機號碼) 正確，立即可重設密碼，確認新密碼，重設成功
+def main() -> None:
+    init_db()
+    ensure_first_admin(ADMIN_EMAIL, ADMIN_PHONE, ADMIN_PASSWORD)
+    init_login_state()
+
+    st.session_state.setdefault("member_auth_tab", "會員登入")
+    current_tab = st.radio(
+        "會員功能",
+        ["會員登入", "會員註冊", "忘記密碼"],
+        horizontal=True,
+        key="member_auth_tab",
+        label_visibility="collapsed",
+    )
+
+    if current_tab == "會員登入":
+        render_login_tab()
+    elif current_tab == "會員註冊":
+        render_register_tab()
+    else:
+        render_forgot_password_tab()
+
+
+main()

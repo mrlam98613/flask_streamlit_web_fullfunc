@@ -4,8 +4,21 @@ LABEL "framework"="streamlit"
 
 WORKDIR /app
 
-# 安裝必要套件（包括 cron）
-RUN apt-get update && apt-get install -y curl cron && rm -rf /var/lib/apt/lists/*
+# 安裝必要套件（包括 cron）及 Node.js LTS。
+# Node.js 主要預留給日後 Streamlit custom component / 前端 build 使用。
+ARG NODE_MAJOR=22
+RUN apt-get update \
+    && apt-get install -y curl cron ca-certificates gnupg \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+        | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" \
+        > /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update \
+    && apt-get install -y nodejs \
+    && node --version \
+    && npm --version \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV TZ=Asia/Hong_Kong
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
