@@ -1,5 +1,10 @@
 
 # 系統每天自動執行 crontab.txt 格式
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+TZ=Asia/Hong_Kong
+CRON_TZ=Asia/Hong_Kong
+
 # 分 小時 日 月 星期 命令  
 # 0   22   *  *   *    (每天 22:00)  
 # 0   6    *  *   *    (每天 06:00)  

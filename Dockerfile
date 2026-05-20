@@ -4,11 +4,16 @@ LABEL "framework"="streamlit"
 
 WORKDIR /app
 
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Asia/Hong_Kong
+
 # 安裝必要套件（包括 cron）及 Node.js LTS。
 # Node.js 主要預留給日後 Streamlit custom component / 前端 build 使用。
 ARG NODE_MAJOR=22
 RUN apt-get update \
-    && apt-get install -y curl cron ca-certificates gnupg \
+    && apt-get install -y curl cron ca-certificates gnupg tzdata \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo $TZ > /etc/timezone \
     && mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
         | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
@@ -19,9 +24,6 @@ RUN apt-get update \
     && node --version \
     && npm --version \
     && rm -rf /var/lib/apt/lists/*
-
-ENV TZ=Asia/Hong_Kong
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # 複製 requirements 並安裝 Python 套件
 COPY requirements.txt .

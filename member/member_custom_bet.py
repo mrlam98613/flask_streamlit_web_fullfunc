@@ -43,6 +43,7 @@ def init_custom_bet_state() -> None:
     st.session_state.setdefault("custom_leg_numbers", [])
     st.session_state.setdefault("custom_banker_reset_token", 0)
     st.session_state.setdefault("custom_leg_reset_token", 0)
+    st.session_state.setdefault("custom_saved_notice", "")
 
 
 def extract_ymd(text: str) -> str:
@@ -98,6 +99,7 @@ def reset_generated_numbers() -> None:
 
     st.session_state["custom_generated_numbers"] = []
     st.session_state["custom_generated_signature"] = None
+    st.session_state["custom_saved_notice"] = ""
 
 
 def reset_banker_leg_numbers() -> None:
@@ -107,6 +109,7 @@ def reset_banker_leg_numbers() -> None:
     st.session_state["custom_leg_numbers"] = []
     st.session_state["custom_banker_reset_token"] += 1
     st.session_state["custom_leg_reset_token"] += 1
+    st.session_state["custom_saved_notice"] = ""
 
 
 def reset_custom_bet_outputs() -> None:
@@ -146,6 +149,16 @@ def render_banker_leg_picker(
     leg_count: int,
 ) -> None:
     """用單一 1-49 鍵盤選膽或配腳。"""
+
+    st.markdown(
+        f"""
+        <h7 style="display:block;font-size:0.92rem;font-weight:700;line-height:1.55;margin:6px 0 8px 0;color:#374151;">
+            1，選種子號 最多 1-3 球<br>
+            2，膽拖：{banker_count} 膽 + {leg_count} 腳｜已選膽 {len(bankers)}/{banker_count}｜配腳 {len(legs)}/{leg_count}
+        </h7>
+        """,
+        unsafe_allow_html=True,
+    )
 
     pick_mode = st.radio(
         "選號模式",
@@ -271,6 +284,28 @@ def generate_banker_leg_numbers(
     return bankers, legs
 
 
+def fill_banker_leg_numbers(
+    bankers: list[int],
+    legs: list[int],
+    banker_count: int,
+    leg_count: int,
+) -> tuple[list[int], list[int]]:
+    """保留已選膽/腳，再補足到指定數量。"""
+
+    rng = random.Random(datetime.now().strftime("%Y%m%d%H%M%S%f"))
+    new_bankers = sorted({int(num) for num in bankers})[:banker_count]
+    pool = [num for num in ALL_NUMBERS if num not in new_bankers]
+    if len(new_bankers) < banker_count:
+        new_bankers = sorted(new_bankers + rng.sample(pool, banker_count - len(new_bankers)))
+
+    new_legs = sorted({int(num) for num in legs if int(num) not in new_bankers})[:leg_count]
+    leg_pool = [num for num in ALL_NUMBERS if num not in new_bankers and num not in new_legs]
+    if len(new_legs) < leg_count:
+        new_legs = sorted(new_legs + rng.sample(leg_pool, leg_count - len(new_legs)))
+
+    return new_bankers, new_legs
+
+
 def build_ball_image_html(nums: list[int]) -> str:
     """產生球圖 HTML。"""
 
@@ -315,6 +350,19 @@ def render_generated_numbers_inline(label: str, nums: list[int], empty_text: str
             <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;min-height:34px;">{body}</div>
         </div>
         """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_saved_notice() -> None:
+    """在選號鍵盤下方顯示儲存提示。"""
+
+    notice = st.session_state.get("custom_saved_notice", "")
+    if not notice:
+        return
+
+    st.markdown(
+        f"<h7 style='display:block;font-size:1rem;font-weight:800;color:#166534;margin:8px 0 6px 0;'>{notice}</h7>",
         unsafe_allow_html=True,
     )
 
@@ -473,14 +521,24 @@ def render_banker_leg_bet_page(email: str, bet_date: str, bet_unit: int) -> None
     combined_nums = sorted(bankers + legs)
 
     st.markdown(
-        f"**每注 ${bet_unit} ｜投注注數：{total_bets:,} 注｜投注金額：${total_cost:,}**"
+        f"""
+        <h7 style="display:block;font-size:1rem;font-weight:800;line-height:1.6;white-space:nowrap;overflow-x:auto;margin:4px 0 8px 0;">
+            每注 ${bet_unit}｜投注注數：{total_bets:,}注｜投注金額：${total_cost:,}
+        </h7>
+        """,
+        unsafe_allow_html=True,
     )
     if not selections_complete:
         st.caption(f"膽拖：{banker_count} 膽 + {leg_count} 腳｜已選膽 {len(bankers)}/{banker_count}｜配腳 {len(legs)}/{leg_count}")
 
     render_banker_leg_summary(seeds, bankers, legs)
     st.markdown("---")
-    render_banker_leg_picker(bankers, legs, banker_count, leg_count)
+    seed_locked = len(seeds) >= 3 and not selections_complete
+    if seed_locked:
+        st.info("已選滿 3 球種子，請按「發球補足」或「清除種子球號」重設。")
+    elif not selections_complete:
+        render_banker_leg_picker(bankers, legs, banker_count, leg_count)
+    render_saved_notice()
 
     st.markdown('<span class="custom-action-marker"></span>', unsafe_allow_html=True)
     clear_col, fill_col, save_col = st.columns(3)
@@ -491,8 +549,9 @@ def render_banker_leg_bet_page(email: str, bet_date: str, bet_unit: int) -> None
         st.rerun()
 
     if fill_col.button("發球補足", key="custom_generate_banker_leg_numbers", use_container_width=True):
-        new_bankers, new_legs = generate_banker_leg_numbers(
-            st.session_state.get("custom_seed_numbers", []),
+        new_bankers, new_legs = fill_banker_leg_numbers(
+            bankers,
+            legs,
             banker_count=banker_count,
             leg_count=leg_count,
         )
@@ -516,9 +575,7 @@ def render_banker_leg_bet_page(email: str, bet_date: str, bet_unit: int) -> None
             total_cost=total_cost,
         )
         if saved:
-            st.session_state["custom_seed_numbers"] = []
-            st.session_state["custom_seed_reset_token"] += 1
-            reset_banker_leg_numbers()
+            st.session_state["custom_saved_notice"] = "你的種子選號投注- 已存紀錄。"
             st.rerun()
 
     if not selections_complete:
@@ -573,9 +630,11 @@ def render_custom_bet_page(email: str) -> None:
     st.markdown('<span class="custom-action-marker"></span>', unsafe_allow_html=True)
     col2, col3 = st.columns(2)
     if col2.button("系統補足 發球", key="custom_generate_numbers", use_container_width=True):
+        st.session_state["custom_saved_notice"] = ""
         st.session_state["custom_generated_numbers"] = generate_numbers(seeds, bet_size)
         st.session_state["custom_generated_signature"] = signature
         st.rerun()
+    render_saved_notice()
 
     if col3.button("儲存至投注紀錄", key="save_custom_bet", disabled=(not bool(nums) or not bool(bet_date)), use_container_width=True):
         if nums:
@@ -589,8 +648,5 @@ def render_custom_bet_page(email: str) -> None:
                 total_cost=total_cost,
             )
             if saved:
-                st.session_state["custom_seed_numbers"] = []
-                st.session_state["custom_generated_numbers"] = []
-                st.session_state["custom_generated_signature"] = None
-                st.session_state["custom_seed_reset_token"] += 1
+                st.session_state["custom_saved_notice"] = "你的種子選號投注- 已存紀錄。"
                 st.rerun()
