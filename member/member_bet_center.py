@@ -17,10 +17,15 @@ if str(PROJECT_ROOT) not in sys.path:
 from db import (  # noqa: E402
     add_member_bet,
     delete_all_member_bets,
+    delete_member,
     delete_member_bet,
+    get_all_members,
     init_member_bet_db,
+    is_valid_email,
+    is_valid_local_phone,
     list_member_bets,
     member_bet_exists,
+    update_member,
 )
 from member.member_custom_bet import render_custom_bet_page  # noqa: E402
 
@@ -29,7 +34,7 @@ PRIZE_RESULTS_PATH = PROJECT_ROOT / "A_msk_lottery_data_folder" / "M3_lotto_priz
 LOTTO_RESULTS_PATH = PROJECT_ROOT / "A_msk_lottery_data_folder" / "M2_last_upgrade_lotto_data.csv"
 BALLS_DIR = PROJECT_ROOT / "A_msk_balls_png"
 NEXT_BET_DRAW_RECORD_PATH = (
-    PROJECT_ROOT / "msk_seedLotto_apps" / "bet_data" / "nextBetDraw_record.csv"
+    PROJECT_ROOT / "msk_new_seed_apps" / "bet_data" / "nextBetDraw_record.csv"
 )
 
 PRIZE_TABLE = {
@@ -267,9 +272,15 @@ def render_system_prediction_tab(email: str) -> None:
     prediction_rows = load_system_prediction_rows()
 
     if bet_date:
-        st.caption(f"投注日期：{format_date_with_weekday(bet_date)}")
+        st.markdown(
+            f'<h6 style="font-size:1.05rem;font-weight:800;color:#111827;margin:4px 0 10px 0;">投注日期：{format_date_with_weekday(bet_date)}</h6>',
+            unsafe_allow_html=True,
+        )
     else:
-        st.caption("投注日期：未找到下一期日期")
+        st.markdown(
+            '<h6 style="font-size:1.05rem;font-weight:800;color:#111827;margin:4px 0 10px 0;">投注日期：未找到下一期日期</h6>',
+            unsafe_allow_html=True,
+        )
 
     if not prediction_rows:
         st.info("目前沒有系統預測投注號碼。")
@@ -338,20 +349,21 @@ def normalize_bet_rows(rows: list[dict]) -> pd.DataFrame:
 
 
 def render_profit_summary(rows: list[dict]) -> None:
-    """顯示會員投注損益資料；同一投注日期只算一個開獎期次。"""
+    """顯示會員投注損益資料；未開獎投注也列入總投注金額。"""
 
     opened_rows = [row for row in rows if row.get("result_status") == "已開獎"]
-    draw_count = len({row.get("bet_date") for row in opened_rows if row.get("bet_date")})
-    total_cost = sum(int(row.get("total_cost") or 0) for row in opened_rows)
+    draw_count = len({row.get("bet_date") for row in rows if row.get("bet_date")})
+    opened_draw_count = len({row.get("bet_date") for row in opened_rows if row.get("bet_date")})
+    total_cost = sum(int(row.get("total_cost") or 0) for row in rows)
     total_payout = sum(int(row.get("payout") or 0) for row in opened_rows)
     profit = total_payout - total_cost
     profit_text = f"+${profit:,}" if profit >= 0 else f"-${abs(profit):,}"
 
     st.markdown(
         f"""
-        <div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin:8px 0 14px 0;background:#fafafa;">
-            <div style="font-weight:700;margin-bottom:6px;">會員投注損益資料</div>
-            <div>投注開獎期次數：{draw_count} 次</div>
+            <div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin:8px 0 14px 0;background:#fafafa;">
+                <div style="font-weight:700;margin-bottom:6px;">會員投注損益資料</div>
+            <div>投注期次數：{draw_count} 次｜已開獎：{opened_draw_count} 次</div>
             <div>總投注金額：${total_cost:,}</div>
             <div>總派彩金額：${total_payout:,}</div>
             <div style="font-weight:700;">投注派彩損益：{profit_text}</div>
@@ -361,20 +373,20 @@ def render_profit_summary(rows: list[dict]) -> None:
     )
 
 
-def sync_delete_selection(rows: list[dict]) -> None:
+def sync_delete_selection(rows: list[dict], key_prefix: str) -> None:
     """根據刪除模式同步每筆投注的勾選狀態。"""
 
-    delete_mode = st.session_state.get("member_bet_delete_mode", "自定勾選")
+    delete_mode = st.session_state.get(f"{key_prefix}_member_bet_delete_mode", "自定勾選")
 
     if delete_mode == "全部勾選":
         for row in rows:
-            st.session_state[f"select_bet_{row['id']}"] = True
+            st.session_state[f"{key_prefix}_select_bet_{row['id']}"] = True
     elif delete_mode == "取消":
         for row in rows:
-            st.session_state[f"select_bet_{row['id']}"] = False
+            st.session_state[f"{key_prefix}_select_bet_{row['id']}"] = False
 
 
-def render_bet_records_tab(email: str) -> None:
+def render_bet_records_tab(email: str, key_prefix: str = "member") -> None:
     st.subheader("C. 會員投注紀錄")
     st.markdown(
         """
@@ -456,13 +468,13 @@ def render_bet_records_tab(email: str) -> None:
 
     rows = enrich_bet_rows_with_results(rows)
     render_profit_summary(rows)
-    st.session_state.setdefault("member_bet_delete_mode", "自定勾選")
-    sync_delete_selection(rows)
+    st.session_state.setdefault(f"{key_prefix}_member_bet_delete_mode", "自定勾選")
+    sync_delete_selection(rows, key_prefix)
 
     selected_ids = [
         int(row["id"])
         for row in rows
-        if st.session_state.get(f"select_bet_{row['id']}", False)
+        if st.session_state.get(f"{key_prefix}_select_bet_{row['id']}", False)
     ]
 
     with st.container(border=True):
@@ -474,14 +486,14 @@ def render_bet_records_tab(email: str) -> None:
             "刪除模式",
             ["自定勾選", "全部勾選", "取消"],
             horizontal=True,
-            key="member_bet_delete_mode",
+            key=f"{key_prefix}_member_bet_delete_mode",
             label_visibility="collapsed",
         )
         st.markdown('<div class="delete-zone">', unsafe_allow_html=True)
         delete_cols = st.columns([0.65, 4.8], vertical_alignment="center")
         if delete_cols[0].button(
             "刪除",
-            key="delete_all_member_bets",
+            key=f"{key_prefix}_delete_member_bets",
             disabled=(
                 delete_mode == "取消"
                 or (delete_mode == "自定勾選" and not selected_ids)
@@ -506,6 +518,8 @@ def render_bet_records_tab(email: str) -> None:
     lotto_results = load_lotto_results()
     for row in rows:
         numbers = json.loads(row.get("numbers") or "[]")
+        bankers = json.loads(row.get("bankers") or "[]")
+        legs = json.loads(row.get("legs") or "[]")
         highlight = {}
         draw_result = lotto_results.get(row.get("bet_date", ""))
         if draw_result:
@@ -527,7 +541,15 @@ def render_bet_records_tab(email: str) -> None:
                 unsafe_allow_html=True,
             )
 
-            render_ball_images([int(num) for num in numbers], highlight=highlight)
+            if row.get("bet_type") == "膽拖" and (bankers or legs):
+                render_ball_images([int(num) for num in bankers], highlight=highlight)
+                st.markdown(
+                    "<div style='font-weight:800;margin:2px 0;'>+</div>",
+                    unsafe_allow_html=True,
+                )
+                render_ball_images([int(num) for num in legs], highlight=highlight)
+            else:
+                render_ball_images([int(num) for num in numbers], highlight=highlight)
             payout = int(row.get("payout") or 0)
             payout_text = "-" if row.get("result_status") == "未開獎" else f"${payout:,}"
             st.markdown(
@@ -541,13 +563,86 @@ def render_bet_records_tab(email: str) -> None:
             st.markdown('<div class="delete-actions-row delete-zone">', unsafe_allow_html=True)
             st.checkbox(
                 "勾選刪除",
-                key=f"select_bet_{row['id']}",
+                key=f"{key_prefix}_select_bet_{row['id']}",
             )
             st.markdown("</div>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
     with st.expander("表格檢視"):
         st.dataframe(normalize_bet_rows(rows), hide_index=True, width="stretch")
+
+
+def render_admin_member_data_tab() -> None:
+    """管理員修改或刪除會員資料。"""
+
+    st.subheader("D. 管理員會員資料")
+    members = get_all_members()
+    current_admin_email = st.session_state.get("login_email_val", "")
+
+    if not members:
+        st.info("目前沒有會員資料。")
+        return
+
+    for member_id, email, phone, is_admin, created_at in members:
+        with st.container(border=True):
+            cols = st.columns([2.5, 1.3, 1.1, 0.8, 0.8])
+            cols[0].markdown(f"**{email}**")
+            cols[1].write(phone)
+            cols[2].write("管理員" if is_admin else "普通會員")
+            cols[3].caption(created_at or "-")
+
+            if email == current_admin_email:
+                cols[4].caption("目前帳號")
+            elif cols[4].button("刪除", key=f"admin_delete_member_{member_id}"):
+                delete_member(member_id)
+                st.warning("已刪除會員資料。")
+                st.rerun()
+
+            if email != current_admin_email and st.button("修改", key=f"admin_edit_member_{member_id}"):
+                st.session_state[f"admin_editing_member_{member_id}"] = True
+
+            if st.session_state.get(f"admin_editing_member_{member_id}"):
+                new_email = st.text_input("新信箱", value=email, key=f"admin_email_{member_id}")
+                new_phone = st.text_input("新手機號碼", value=phone, key=f"admin_phone_{member_id}")
+                save_cols = st.columns(2)
+                if save_cols[0].button("確認修改", key=f"admin_save_member_{member_id}"):
+                    new_email = str(new_email or "").strip().lower()
+                    new_phone = str(new_phone or "").strip()
+                    if not is_valid_email(new_email):
+                        st.error("Email 格式不正確。")
+                    elif not is_valid_local_phone(new_phone):
+                        st.error("手機號碼請輸入 8 位數字，不需要地區號。")
+                    else:
+                        update_member(member_id, new_email, new_phone)
+                        st.success("會員資料已更新。")
+                        st.session_state.pop(f"admin_editing_member_{member_id}", None)
+                        st.rerun()
+                if save_cols[1].button("取消", key=f"admin_cancel_member_{member_id}"):
+                    st.session_state.pop(f"admin_editing_member_{member_id}", None)
+                    st.rerun()
+
+
+def render_admin_member_bets_tab() -> None:
+    """管理員查看及刪除指定會員投注紀錄。"""
+
+    st.subheader("E. 管理員會員投注紀錄")
+    members = get_all_members()
+    member_emails = [email for _, email, _, _, _ in members]
+
+    if not member_emails:
+        st.info("目前沒有會員資料。")
+        return
+
+    selected_email = st.selectbox(
+        "選擇會員",
+        member_emails,
+        key="admin_selected_member_bet_email",
+    )
+    if not selected_email:
+        st.info("請先選擇會員。")
+        return
+    selected_email = str(selected_email)
+    render_bet_records_tab(selected_email, key_prefix="admin")
 
 
 def main() -> None:
@@ -557,13 +652,23 @@ def main() -> None:
 
     st.header("會員投注中心")
 
-    tabs = st.tabs(["A. 系統預測投注", "B. 會員自定種類投注", "C. 會員投注紀錄"])
+    tab_names = ["A. 系統預測投注", "B. 會員自定種類投注", "C. 會員投注紀錄"]
+    is_admin = st.session_state.get("login_state") == "admin"
+    if is_admin:
+        tab_names.extend(["D. 管理員會員資料", "E. 管理員投注紀錄"])
+
+    tabs = st.tabs(tab_names)
     with tabs[0]:
         render_system_prediction_tab(email)
     with tabs[1]:
         render_custom_bet_tab(email)
     with tabs[2]:
-        render_bet_records_tab(email)
+        render_bet_records_tab(email, key_prefix="member")
+    if is_admin:
+        with tabs[3]:
+            render_admin_member_data_tab()
+        with tabs[4]:
+            render_admin_member_bets_tab()
 
 
 main()

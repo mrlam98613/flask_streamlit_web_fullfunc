@@ -11,11 +11,12 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PRIZE_RESULTS_PATH = PROJECT_ROOT / "A_msk_lottery_data_folder" / "M3_lotto_prize_results.csv"
 LOTTO_RESULTS_PATH = PROJECT_ROOT / "A_msk_lottery_data_folder" / "M2_last_upgrade_lotto_data.csv"
-BET_RECORDS_PATH = PROJECT_ROOT / "msk_seedLotto_apps" / "bet_data" / "my_bet_records.csv"
+BET_RECORDS_PATH = PROJECT_ROOT / "msk_new_seed_apps" / "bet_data" / "my_bet_records.csv"
 BALLS_DIR = PROJECT_ROOT / "A_msk_balls_png"
 
 # 新增：讀取 nextBetDraw_record.csv 作為下期預測球號來源
-NEXT_BET_DRAW_RECORD_PATH = PROJECT_ROOT / "msk_seedLotto_apps" / "bet_data" / "nextBetDraw_record.csv"
+NEXT_BET_DRAW_RECORD_PATH = PROJECT_ROOT / "msk_new_seed_apps" / "bet_data" / "nextBetDraw_record.csv"
+NEXT_BET_DRAW_SUMMARY_PATH = PROJECT_ROOT / "msk_new_seed_apps" / "bet_data" / "nextBetDraw_summary.csv"
 
 
 PRIZE_TABLE = {
@@ -40,6 +41,22 @@ def load_next_bet_draw_records(path: Path):
             if len(nums) >= 6:
                 result.append(nums)
     return result
+
+
+def load_next_bet_draw_summary(path: Path):
+    """讀取 nextBetDraw_summary.csv，回傳下期投注摘要。"""
+    if not path.exists():
+        return {}
+
+    with path.open("r", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames:
+            reader.fieldnames = [name.strip().lstrip("\ufeff") for name in reader.fieldnames]
+
+        for row in reader:
+            return {(k or "").strip().lstrip("\ufeff"): (v or "").strip() for k, v in row.items()}
+
+    return {}
 
 
 @st.cache_data(show_spinner=False)
@@ -86,6 +103,12 @@ def parse_num_list(text: str):
         return []
     nums = [int(x) for x in re.findall(r"\d+", text)]
     return [n for n in nums if 1 <= n <= 49]
+
+
+def format_seed_numbers(nums):
+    if not nums:
+        return "[無]"
+    return "[ " + "，".join(str(n) for n in nums) + " ]"
 
 
 def render_balls(nums, label: str = "", highlight=None):
@@ -256,6 +279,11 @@ def render_home_page():
             margin-top: 4px !important;
             margin-bottom: 4px !important;
         }
+        .section-gap {
+            margin: 34px 0 22px 0 !important;
+            border: 0;
+            border-top: 2px solid #888;
+        }
         </style>
     """, unsafe_allow_html=True)
     get_bet_draw = int(st.session_state.get("setting_get_BetDraw", 2))
@@ -265,25 +293,23 @@ def render_home_page():
     latest_date = extract_ymd(latest_date_raw)
     latest_numbers = parse_num_list(latest_numbers_raw)
     next_draw_date = extract_ymd(next_draw_raw)
+    next_bet_summary = load_next_bet_draw_summary(NEXT_BET_DRAW_SUMMARY_PATH)
+    summary_bet_date = next_bet_summary.get("bet_date", "")
+    summary_week_zh = next_bet_summary.get("week_zh", "")
+    seed_numbers = parse_num_list(
+        next_bet_summary.get("seed_numbers", "") or next_bet_summary.get("seed_number", "")
+    )
     latest_date_display = format_date_with_weekday(latest_date or latest_date_raw)
     next_draw_date_display = format_date_with_weekday(next_draw_date or next_draw_raw)
+    if summary_bet_date and summary_week_zh:
+        next_draw_date_display = f"{summary_bet_date} （{summary_week_zh}）"
+    elif summary_bet_date:
+        next_draw_date_display = format_date_with_weekday(summary_bet_date)
 
-    # 加入最新派彩資訊
-    period, payout_rows = load_prize_payout_rows(PRIZE_RESULTS_PATH)
-
-    period_display = f"（{period}）" if period else ""
-    
-    # st.write(f"1.最新一期開獎結果 {period_display}")
-
-    st.markdown('<div style="margin-bottom:12px;margin-top:8px;"><h6 style="font-size:1.4rem; font-weight:bold;display:inline-block;">1.🏆 最新一期開獎</h6></div>', unsafe_allow_html=True)
-    st.markdown(f"<div style='margin-bottom:8px'><span style='font-size:1.2rem; font-weight:bold;'>開獎日期：{latest_date_display}</span></div>", unsafe_allow_html=True)
-    st.markdown("<div style='text-align: left; margin-bottom:8px'>", unsafe_allow_html=True)
-    render_balls(latest_numbers[:7])
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("<hr style='margin:24px 0 24px 0;border:0;border-top:2px solid #888;'>", unsafe_allow_html=True)
-    
-    # st.write(f"2.下期種子投注預測")
-    st.markdown('<div style="margin-bottom:12px;margin-top:8px;"><h6 style="font-size:1.4rem; font-weight:bold;display:inline-block;">2.👍 下期種子投注預測</h6></div>', unsafe_allow_html=True)
+   
+    # st.write(f"1.下期種子投注預測")
+    st.markdown('<div style="margin-bottom:12px;margin-top:8px;"><h6 style="font-size:1.4rem; font-weight:bold;display:inline-block;">1.👍 下期種子投注預測</h6></div>', unsafe_allow_html=True)
+    st.markdown(f"<div style='margin-bottom:8px'><span style='font-size:1.2rem; font-weight:bold;'>上期中獎種子號 ： {format_seed_numbers(seed_numbers)}</span></div>", unsafe_allow_html=True)
     st.markdown(f"<div style='margin-bottom:8px'><span style='font-size:1.2rem; font-weight:bold;'>投注日期：{next_draw_date_display}</span></div>", unsafe_allow_html=True)
     pred_rows = load_next_bet_draw_records(NEXT_BET_DRAW_RECORD_PATH)
     if pred_rows:
@@ -293,10 +319,10 @@ def render_home_page():
         st.info("目前沒有找到 nextBetDraw_record.csv 內的預測號碼。")
 
     # 加入種子過去投注紀錄及檢對中獎結果
-    st.markdown("<hr style='margin:24px 0 24px 0;border:0;border-top:2px solid #888;'>", unsafe_allow_html=True)
+    st.markdown("<hr class='section-gap'>", unsafe_allow_html=True)
     # st.write("3.種子過去投注紀錄（核對中獎結果）")
-    st.markdown('<div style="margin-bottom:2px"><h6 style="font-size:1.4rem; font-weight:bold;display:inline-block;">3.✌️ 種子投注過往紀錄</h6></div>', unsafe_allow_html=True)
-    st.markdown('<div style="margin-bottom:2px"><h7 style="font-size:1.2rem; font-weight:bold;display:inline-block;"> 👀 (核對系統過去預測結果 ⭕️ 中正號 🔲 中特號 )</h7></div>', unsafe_allow_html=True)
+    st.markdown('<div style="margin-bottom:2px"><h6 style="font-size:1.4rem; font-weight:bold;display:inline-block;">2.✌️ 種子投注過往紀錄</h6></div>', unsafe_allow_html=True)
+    st.markdown('<div style="margin-bottom:2px"><h8 style="font-size:1.0rem; font-weight:bold;display:inline-block;"> 👀 (核對預測投注結果 ⭕️ 中正號 🔲 中特號 )</h8></div>', unsafe_allow_html=True)
     # 讀取開獎號碼資料（欄位名稱與 B01_check_lottoWin.py 一致）
     lotto_results = {}
     with LOTTO_RESULTS_PATH.open("r", encoding="utf-8-sig") as f:
@@ -308,7 +334,7 @@ def render_home_page():
             if date and all(1 <= n <= 49 for n in nums) and 1 <= special <= 49:
                 lotto_results[date.strip()] = {"nums": set(nums), "special": special}
 
-    st.markdown("---")
+    st.markdown("---", unsafe_allow_html=True)
     # 讀取投注紀錄，並依日期倒序排列
     bet_records = []
     with BET_RECORDS_PATH.open("r", encoding="utf-8-sig") as f:
@@ -376,7 +402,7 @@ def render_home_page():
             highlight = {"main": win_main_set}
             if win_special:
                 highlight["special"] = win_special
-            render_balls(nums, label="投注號：", highlight=highlight)
+            render_balls(nums, label="過去投注號：", highlight=highlight)
             # 中獎行
             if win_score == 0:
                 st.markdown(f"<div style='margin-bottom:2px'><span style='font-weight:bold;'> 中 = {win_score} 球 |  獎項: {prize} | 派彩:$ {payout} --  😊</span></div>", unsafe_allow_html=True)
@@ -387,8 +413,8 @@ def render_home_page():
             elif win_score > 3:
                 st.markdown(f"<div style='margin-bottom:2px'><span style='font-weight:bold;'> 中 > {win_score} 球 |  獎項:{prize} | 派彩:$ {payout} --  🏆🏆🏆</span></div>", unsafe_allow_html=True)
         else:
-            render_balls(nums, label="投注號：", highlight={})
-            st.markdown("---")
+            render_balls(nums, label="最新投注號：", highlight={})
+            # st.markdown("---")
             st.markdown("<div style='margin-bottom:2px'><span style='font-weight:bold;'> | 最新投注預測： 未開獎 👀 | </span></div>", unsafe_allow_html=True)
             st.markdown("---")
         # 每筆資料下方加分隔線

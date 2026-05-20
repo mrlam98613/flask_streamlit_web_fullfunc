@@ -19,10 +19,12 @@ import re
 import shutil
 import time
 from pathlib import Path
+from typing import TypedDict, cast
 
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+from bs4.element import Tag
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -52,6 +54,22 @@ M2_CSV = DATA_DIR / "M2_last_upgrade_lotto_data.csv"
 M3_CSV = DATA_DIR / "M3_lotto_prize_results.csv"
 M4_CSV = DATA_DIR / "M4_lotto_prize_summary.csv"
 
+REQUIRED_M2_COLUMNS = ["ndate", "N1", "N2", "N3", "N4", "N5", "N6", "N7"]
+REQUIRED_M4_COLUMNS = [
+    "last_draw_date",
+    "N1",
+    "N2",
+    "N3",
+    "N4",
+    "N5",
+    "N6",
+    "N7",
+    "next_draw_date",
+    "week",
+    "next_draw_prize_fund",
+]
+DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
 LOTTO_HISTORY_URL = (
     "https://zh.lottolyzer.com/history/hong-kong/mark-six/page/"
     "{page}/per-page/50/summary-view"
@@ -68,6 +86,23 @@ REQUEST_HEADERS = {
         "Chrome/125.0 Safari/537.36"
     )
 }
+
+
+class LatestDrawInfo(TypedDict):
+    """首頁最新一期開獎資料。"""
+
+    draw_number: str
+    draw_date: str
+    numbers: list[str]
+    prizes: list[tuple[str, str, str]]
+
+
+class NextDrawInfo(TypedDict):
+    """首頁下一期開獎資料。"""
+
+    draw_name: str
+    draw_date: str
+    prize_fund: str
 
 
 def ensure_folders() -> None:
@@ -101,6 +136,107 @@ def write_log(message: str) -> None:
 
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     LOG_PATH.write_text(message + "\n", encoding="utf-8")
+
+
+def require_tag(parent: BeautifulSoup | Tag, selector: str, label: str) -> Tag:
+    """用 CSS selector 取得必要 HTML 元素；不存在時直接報錯。"""
+
+    tag = parent.select_one(selector)
+    if tag is None:
+        raise ValueError(f"找不到 {label}")
+    return tag
+
+
+def require_text(parent: BeautifulSoup | Tag, selector: str, label: str) -> str:
+    """取得必要 HTML 元素文字。"""
+
+    return require_tag(parent, selector, label).get_text(strip=True)
+
+
+def is_valid_date(value: object) -> bool:
+    """檢查日期欄位是否為 YYYY-MM-DD。"""
+
+    return bool(DATE_PATTERN.match(str(value).strip()))
+
+
+def read_csv_required(path: Path, required_columns: list[str]) -> pd.DataFrame:
+    """讀取 CSV 並確認必要欄位存在。"""
+
+    if not path.exists():
+        raise FileNotFoundError(f"找不到 CSV：{path}")
+
+    df = pd.read_csv(path, encoding="utf-8-sig")
+    missing = [col for col in required_columns if col not in df.columns]
+    if missing:
+        raise ValueError(f"{path.name} 缺少欄位：{missing}")
+    if df.empty:
+        raise ValueError(f"{path.name} 沒有資料")
+    return df
+
+
+def latest_m2_draw_date(path: Path) -> str | None:
+    """取得 M2 最新一期開獎日期；沒有有效資料時回傳 None。"""
+
+    if not path.exists():
+        return None
+
+    df = read_csv_required(path, REQUIRED_M2_COLUMNS)
+    dates = df["ndate"].astype(str).str.strip()
+    valid_dates = dates[dates.map(is_valid_date)]
+    if valid_dates.empty:
+        return None
+    return str(valid_dates.max())
+
+
+def validate_generated_files() -> tuple[str, str, str]:
+    """確認本次產生的 M2/M4 完整，回傳最新期、下期日期、星期。"""
+
+    latest_draw_date = latest_m2_draw_date(M2_CSV)
+    if latest_draw_date is None:
+        raise ValueError("M2 找不到有效最新開獎日期")
+
+    m4_df = read_csv_required(M4_CSV, REQUIRED_M4_COLUMNS)
+    m4_df = m4_df.copy()
+    m4_df["last_draw_date"] = m4_df["last_draw_date"].astype(str).str.strip()
+    m4_df["next_draw_date"] = m4_df["next_draw_date"].astype(str).str.strip()
+    m4_df = m4_df[
+        m4_df["last_draw_date"].map(is_valid_date)
+        & m4_df["next_draw_date"].map(is_valid_date)
+        & m4_df["week"].notna()
+    ]
+    if m4_df.empty:
+        raise ValueError("M4 找不到有效 next_draw_date / week")
+
+    latest_m4 = m4_df.sort_values("last_draw_date").iloc[-1]
+    if str(latest_m4["last_draw_date"]) != latest_draw_date:
+        raise ValueError(
+            "M2 最新期與 M4 最新摘要不一致："
+            f"M2={latest_draw_date}, M4={latest_m4['last_draw_date']}"
+        )
+
+    week = str(latest_m4["week"]).strip()
+    if week.endswith(".0"):
+        week = week[:-2]
+    if week not in {"1", "2", "3", "4", "5", "6", "7"}:
+        raise ValueError(f"M4 week 不正確：{latest_m4['week']}")
+
+    return latest_draw_date, str(latest_m4["next_draw_date"]), week
+
+
+def should_copy_to_webapp() -> tuple[bool, str | None, str]:
+    """比較本次下載結果與 WebApp 現有資料，判斷是否需要複製。"""
+
+    new_latest = latest_m2_draw_date(M2_CSV)
+    if new_latest is None:
+        raise ValueError("本次下載後 M2 沒有有效最新期數")
+
+    target_m2 = WEBAPP_DATA_DIR / M2_CSV.name
+    old_latest = latest_m2_draw_date(target_m2)
+
+    if old_latest is not None and new_latest <= old_latest:
+        return False, old_latest, new_latest
+
+    return True, old_latest, new_latest
 
 
 def build_http_session() -> requests.Session:
@@ -138,10 +274,11 @@ def download_lotto_page(page: int) -> pd.DataFrame:
     """下載單頁六合彩歷史資料，整理成 ndate, N1-N7 欄位。"""
 
     soup = fetch_soup(LOTTO_HISTORY_URL.format(page=page))
-    table = soup.find("table")
+    table = soup.select_one("table")
 
     if table is None:
         raise ValueError(f"Page {page} 找不到資料表")
+    table = cast(Tag, table)
 
     headers = [th.get_text(strip=True) for th in table.find_all("th")]
     rows: list[list[str]] = []
@@ -208,16 +345,23 @@ def create_m2_merged_history() -> None:
     combined_df.to_csv(M2_CSV, index=False)
 
 
-def parse_latest_draw_info(soup: BeautifulSoup) -> dict[str, object]:
+def parse_latest_draw_info(soup: BeautifulSoup) -> LatestDrawInfo:
     """解析最新一期開獎資料和獎金資料。"""
 
-    draw_number = soup.find("span", id="latest_draw").get_text(strip=True)
-    draw_date = soup.find("span", id="latest_date").get_text(strip=True)
-    numbers = [img["alt"] for img in soup.select("#latest_numbers img.ball")]
+    draw_number = require_text(soup, "span#latest_draw", "最新期數")
+    draw_date = require_text(soup, "span#latest_date", "最新開獎日期")
+    numbers = [
+        str(img.get("alt", "")).strip()
+        for img in soup.select("#latest_numbers img.ball")
+        if str(img.get("alt", "")).strip()
+    ]
+    if len(numbers) != 7:
+        raise ValueError(f"最新一期號碼數量不是 7 個：{numbers}")
 
     prize_table = soup.select_one(".divisions-full table")
     if prize_table is None:
         raise ValueError("找不到最新一期獎金表")
+    prize_table = cast(Tag, prize_table)
 
     prizes: list[tuple[str, str, str]] = []
     for row in prize_table.select("tbody tr"):
@@ -232,24 +376,25 @@ def parse_latest_draw_info(soup: BeautifulSoup) -> dict[str, object]:
             )
 
     return {
-        "期數": draw_number,
-        "日期": draw_date,
-        "號碼": numbers,
-        "獎項": prizes,
+        "draw_number": draw_number,
+        "draw_date": draw_date,
+        "numbers": numbers,
+        "prizes": prizes,
     }
 
 
-def parse_next_draw_info(soup: BeautifulSoup) -> dict[str, str]:
+def parse_next_draw_info(soup: BeautifulSoup) -> NextDrawInfo:
     """解析下一期開獎日期和預估頭獎。"""
 
     next_draw = soup.select_one("div.upcoming")
     if next_draw is None:
         raise ValueError("找不到下一期開獎資料")
+    next_draw = cast(Tag, next_draw)
 
     return {
-        "期數名稱": next_draw.select_one("span.draw-data").get_text(strip=True),
-        "開獎日期": next_draw.select_one("span.date-data").get_text(strip=True),
-        "預估頭獎": next_draw.select_one("span.prize-data").get_text(strip=True),
+        "draw_name": require_text(next_draw, "span.draw-data", "下一期期數名稱"),
+        "draw_date": require_text(next_draw, "span.date-data", "下一期開獎日期"),
+        "prize_fund": require_text(next_draw, "span.prize-data", "下一期預估頭獎"),
     }
 
 
@@ -264,20 +409,20 @@ def create_m3_prize_results() -> None:
         writer = csv.writer(file)
 
         writer.writerow(["🔴 最新一期"])
-        writer.writerow(["期數", latest["期數"]])
-        writer.writerow(["日期", latest["日期"]])
-        writer.writerow(["號碼", ", ".join(latest["號碼"])])
+        writer.writerow(["期數", latest["draw_number"]])
+        writer.writerow(["日期", latest["draw_date"]])
+        writer.writerow(["號碼", ", ".join(latest["numbers"])])
         writer.writerow([])
 
         writer.writerow(["獎項", "獎金", "中獎注數"])
-        for prize in latest["獎項"]:
+        for prize in latest["prizes"]:
             writer.writerow(prize)
         writer.writerow([])
 
         writer.writerow(["🟢 下一期"])
-        writer.writerow(["期數名稱", next_draw["期數名稱"]])
-        writer.writerow(["開獎日期", next_draw["開獎日期"]])
-        writer.writerow(["預估頭獎", next_draw["預估頭獎"]])
+        writer.writerow(["期數名稱", next_draw["draw_name"]])
+        writer.writerow(["開獎日期", next_draw["draw_date"]])
+        writer.writerow(["預估頭獎", next_draw["prize_fund"]])
 
 
 def extract_lotto_summary(text: str) -> dict[str, str]:
@@ -290,7 +435,12 @@ def extract_lotto_summary(text: str) -> dict[str, str]:
     next_draw_match = re.search(r"開獎日期,(\d{4})年(\d{2})月(\d{2})日\s+\((.)\)", text)
     prize_match = re.search(r"預估頭獎,\"?\$([\d,]+)\"?", text)
 
-    if not all([last_draw_date_match, lotto_match, next_draw_match, prize_match]):
+    if (
+        last_draw_date_match is None
+        or lotto_match is None
+        or next_draw_match is None
+        or prize_match is None
+    ):
         raise ValueError("M3 內容格式不符合預期，無法產生 M4 摘要")
 
     lotto_list = [num.strip() for num in lotto_match.group(1).split(",") if num.strip()]
@@ -349,7 +499,7 @@ def copy_m1_to_m4_to_webapp_folder() -> None:
 
 
 def run() -> bool:
-    """主流程：依序產生 M1-M4，最後複製到 Web App 資料夾。"""
+    """主流程：下載並比對；只有發現新期數才複製到 Web App 資料夾。"""
 
     ensure_folders()
 
@@ -369,6 +519,18 @@ def run() -> bool:
         # print("▶️ M4 產生下一期摘要 ...")
         create_m4_prize_summary()
 
+        latest_draw_date, next_draw_date, week = validate_generated_files()
+        should_copy, old_latest, new_latest = should_copy_to_webapp()
+        if not should_copy:
+            message = (
+                f"{now_string()} \n /> A, 沒有新開獎資料，略過複製。\n"
+                f"/> B, 目前最新期：{old_latest}；下載最新期：{new_latest}\n"
+                f"/> C, 下期開獎日期：{next_draw_date}，星期：{week}。"
+            )
+            write_log(message)
+            print(f"ℹ️ {message}")
+            return True
+
         print("▶️ 複製 M1-M4 到 A_msk_lottery_data_folder ...")
         copy_m1_to_m4_to_webapp_folder()
 
@@ -383,7 +545,11 @@ def run() -> bool:
         print(f"❌ {message}")
         return False
 
-    message = f"{now_string()} M1-M4 下載、合併、摘要、複製完成！"
+    message = (
+        f"{now_string()} \n /> 1, 有發現新開獎資料並已複製完成。\n"
+        f"/> 2, 最新一期：{latest_draw_date}\n"
+        f"/> 3, 馬會下期開獎日期：{next_draw_date}，星期：{week}。"
+    )
     write_log(message)
     print(f"✅ {message}")
     return True

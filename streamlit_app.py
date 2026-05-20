@@ -9,26 +9,26 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 
 PAGES = {
     "predict": {
-        "label": "預測",
+        "label": "下期預測",
         "icon": "🏆",
         "path": PROJECT_ROOT / "pages" / "0_predict_nextdraw.py",
         "login_required": False,
     },
     "results": {
-        "label": "開獎",
+        "label": "開獎紀錄",
         "icon": "📊",
         "path": PROJECT_ROOT / "pages" / "1_lotto_results.py",
         "login_required": False,
     },
     "member": {
-        "label": "員登投注",
+        "label": "會員登入投注",
         "icon": "👤",
         "path": PROJECT_ROOT / "member" / "member_login.py",
         "bet_path": PROJECT_ROOT / "member" / "member_bet_center.py",
         "login_required": False,
     },
     "calculator": {
-        "label": "計算",
+        "label": "投注派彩計算",
         "icon": "🧮",
         "path": PROJECT_ROOT / "pages" / "3_multiple_bet.py",
         "login_required": False,
