@@ -25,6 +25,8 @@ RUN apt-get update \
     && npm --version \
     && rm -rf /var/lib/apt/lists/*
 
+
+
 # 複製 requirements 並安裝 Python 套件
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -34,10 +36,23 @@ COPY . .
 
 # 建立日誌目錄
 RUN mkdir -p /var/log/cron
+RUN echo "/var/log/cron/*.log {\n\
+    daily\n\
+    rotate 7\n\
+    compress\n\
+    delaycompress\n\
+    missingok\n\
+    notifempty\n\
+}" > /etc/logrotate.d/cron-logs
 
 # 複製並載入 crontab.txt
 COPY crontab.txt /tmp/crontab.txt
 RUN crontab /tmp/crontab.txt
+
+
+
+
+
 
 # 預設開放 8501 (Streamlit) 及 8080 (Flask/Gunicorn)
 EXPOSE 8501 8080
