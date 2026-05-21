@@ -36,6 +36,7 @@ def init_custom_bet_state() -> None:
     """初始化自定投注狀態。"""
 
     st.session_state.setdefault("custom_seed_numbers", [])
+    st.session_state.setdefault("custom_picker_seed_numbers", [])
     st.session_state.setdefault("custom_generated_numbers", [])
     st.session_state.setdefault("custom_generated_signature", None)
     st.session_state.setdefault("custom_seed_reset_token", 0)
@@ -44,6 +45,8 @@ def init_custom_bet_state() -> None:
     st.session_state.setdefault("custom_banker_reset_token", 0)
     st.session_state.setdefault("custom_leg_reset_token", 0)
     st.session_state.setdefault("custom_saved_notice", "")
+    st.session_state.setdefault("custom_save_locked", False)
+    st.session_state.setdefault("custom_last_banker_count", None)
 
 
 def extract_ymd(text: str) -> str:
@@ -100,6 +103,7 @@ def reset_generated_numbers() -> None:
     st.session_state["custom_generated_numbers"] = []
     st.session_state["custom_generated_signature"] = None
     st.session_state["custom_saved_notice"] = ""
+    st.session_state["custom_save_locked"] = False
 
 
 def reset_banker_leg_numbers() -> None:
@@ -110,11 +114,17 @@ def reset_banker_leg_numbers() -> None:
     st.session_state["custom_banker_reset_token"] += 1
     st.session_state["custom_leg_reset_token"] += 1
     st.session_state["custom_saved_notice"] = ""
+    st.session_state["custom_save_locked"] = False
 
 
 def reset_custom_bet_outputs() -> None:
     """投注種類或金額改變時，清空已產生投注。"""
 
+    st.session_state["custom_seed_numbers"] = []
+    st.session_state["custom_picker_seed_numbers"] = []
+    st.session_state["custom_seed_reset_token"] += 1
+    st.session_state["custom_last_banker_count"] = None
+    st.session_state["custom_save_locked"] = False
     reset_generated_numbers()
     reset_banker_leg_numbers()
 
@@ -129,14 +139,16 @@ def render_seed_picker(seeds: list[int], nums: list[int]) -> None:
 def render_seed_only_picker(seeds: list[int]) -> None:
     """只顯示種子選號盤。"""
 
+    picker_seeds = st.session_state.get("custom_picker_seed_numbers", seeds)
     selected = number_picker(
-        selected=seeds,
+        selected=picker_seeds,
         max_select=3,
         reset_token=st.session_state["custom_seed_reset_token"],
         key=f"custom_seed_number_picker_{st.session_state['custom_seed_reset_token']}",
     )
     selected = sorted(int(num) for num in selected)
-    if selected != seeds:
+    if selected != picker_seeds:
+        st.session_state["custom_picker_seed_numbers"] = selected
         st.session_state["custom_seed_numbers"] = selected
         reset_generated_numbers()
         st.rerun()
@@ -150,6 +162,7 @@ def render_banker_leg_picker(
 ) -> None:
     """用單一 1-49 鍵盤選膽或配腳。"""
 
+    banker_seed_count, leg_seed_count = seed_allocation_for_banker_leg(banker_count)
     st.markdown(
         f"""
         <h7 style="display:block;font-size:0.92rem;font-weight:700;line-height:1.55;margin:6px 0 8px 0;color:#374151;">
@@ -160,9 +173,16 @@ def render_banker_leg_picker(
         unsafe_allow_html=True,
     )
 
+    if len(bankers) >= banker_seed_count and leg_seed_count > 0 and len(legs) < leg_seed_count:
+        st.session_state["custom_banker_leg_pick_mode"] = "配腳"
+
+    pick_options = ["膽", "配腳"] if leg_seed_count > 0 else ["膽"]
+    if st.session_state.get("custom_banker_leg_pick_mode") not in pick_options:
+        st.session_state["custom_banker_leg_pick_mode"] = "膽"
+
     pick_mode = st.radio(
         "選號模式",
-        ["膽", "配腳"],
+        pick_options,
         horizontal=True,
         key="custom_banker_leg_pick_mode",
     )
@@ -170,25 +190,29 @@ def render_banker_leg_picker(
     if pick_mode == "膽":
         selected = number_picker(
             selected=bankers,
-            max_select=banker_count,
+            max_select=banker_seed_count,
             reset_token=st.session_state["custom_banker_reset_token"],
-            key=f"custom_banker_leg_picker_banker_{st.session_state['custom_banker_reset_token']}_{banker_count}",
+            key=f"custom_banker_leg_picker_banker_{st.session_state['custom_banker_reset_token']}_{banker_seed_count}",
         )
         selected_bankers = sorted(int(num) for num in selected)
         if selected_bankers != bankers:
             st.session_state["custom_banker_numbers"] = selected_bankers
             st.session_state["custom_leg_numbers"] = [num for num in legs if num not in selected_bankers]
+            st.session_state["custom_saved_notice"] = ""
+            st.session_state["custom_save_locked"] = False
             st.rerun()
     else:
         selected = number_picker(
             selected=legs,
-            max_select=leg_count,
+            max_select=leg_seed_count,
             reset_token=st.session_state["custom_leg_reset_token"],
-            key=f"custom_banker_leg_picker_leg_{st.session_state['custom_leg_reset_token']}_{leg_count}",
+            key=f"custom_banker_leg_picker_leg_{st.session_state['custom_leg_reset_token']}_{leg_seed_count}",
         )
         selected_legs = sorted(int(num) for num in selected if int(num) not in bankers)
         if selected_legs != legs:
             st.session_state["custom_leg_numbers"] = selected_legs
+            st.session_state["custom_saved_notice"] = ""
+            st.session_state["custom_save_locked"] = False
             st.rerun()
 
 
@@ -306,6 +330,14 @@ def fill_banker_leg_numbers(
     return new_bankers, new_legs
 
 
+def seed_allocation_for_banker_leg(banker_count: int) -> tuple[int, int]:
+    """膽拖種子分配：優先填膽，總種子最多 3 球。"""
+
+    banker_seed_count = min(max(int(banker_count), 1), 3)
+    leg_seed_count = max(0, 3 - banker_seed_count)
+    return banker_seed_count, leg_seed_count
+
+
 def build_ball_image_html(nums: list[int]) -> str:
     """產生球圖 HTML。"""
 
@@ -419,12 +451,59 @@ def render_custom_action_styles() -> None:
             font-weight: 800 !important;
             border-radius: 8px !important;
         }
+        .custom-action-a,
+        .custom-action-b,
+        .custom-action-c {
+            display: none;
+        }
+        div[data-testid="column"]:has(.custom-action-a) div[data-testid="stButton"] button,
+        div[data-testid="stColumn"]:has(.custom-action-a) div[data-testid="stButton"] button,
+        div:has(> div[data-testid="stElementContainer"] .custom-action-a) div[data-testid="stButton"] button {
+            background: #dbeafe !important;
+            color: #1e3a8a !important;
+            border-color: #93c5fd !important;
+        }
+        div[data-testid="column"]:has(.custom-action-b) div[data-testid="stButton"] button,
+        div[data-testid="stColumn"]:has(.custom-action-b) div[data-testid="stButton"] button,
+        div:has(> div[data-testid="stElementContainer"] .custom-action-b) div[data-testid="stButton"] button {
+            background: #facc15 !important;
+            color: #111827 !important;
+            border-color: #eab308 !important;
+        }
+        div[data-testid="column"]:has(.custom-action-c) div[data-testid="stButton"] button,
+        div[data-testid="stColumn"]:has(.custom-action-c) div[data-testid="stButton"] button,
+        div:has(> div[data-testid="stElementContainer"] .custom-action-c) div[data-testid="stButton"] button {
+            background: #dc2626 !important;
+            color: #ffffff !important;
+            border-color: #b91c1c !important;
+        }
         div[data-testid="stElementContainer"]:has(.custom-action-marker) + div[data-testid="stHorizontalBlock"] button:hover:enabled,
         div[data-testid="stElementContainer"]:has(.custom-action-marker) + div div[data-testid="stHorizontalBlock"] button:hover:enabled,
         div[data-testid="stElementContainer"]:has(.custom-action-marker) + div[data-testid="stButton"] button:hover:enabled {
             background: #eab308 !important;
             color: #111827 !important;
             border-color: #ca8a04 !important;
+        }
+        div[data-testid="column"]:has(.custom-action-a) div[data-testid="stButton"] button:hover:enabled,
+        div[data-testid="stColumn"]:has(.custom-action-a) div[data-testid="stButton"] button:hover:enabled,
+        div:has(> div[data-testid="stElementContainer"] .custom-action-a) div[data-testid="stButton"] button:hover:enabled {
+            background: #bfdbfe !important;
+            color: #1e3a8a !important;
+            border-color: #60a5fa !important;
+        }
+        div[data-testid="column"]:has(.custom-action-b) div[data-testid="stButton"] button:hover:enabled,
+        div[data-testid="stColumn"]:has(.custom-action-b) div[data-testid="stButton"] button:hover:enabled,
+        div:has(> div[data-testid="stElementContainer"] .custom-action-b) div[data-testid="stButton"] button:hover:enabled {
+            background: #eab308 !important;
+            color: #111827 !important;
+            border-color: #ca8a04 !important;
+        }
+        div[data-testid="column"]:has(.custom-action-c) div[data-testid="stButton"] button:hover:enabled,
+        div[data-testid="stColumn"]:has(.custom-action-c) div[data-testid="stButton"] button:hover:enabled,
+        div:has(> div[data-testid="stElementContainer"] .custom-action-c) div[data-testid="stButton"] button:hover:enabled {
+            background: #b91c1c !important;
+            color: #ffffff !important;
+            border-color: #991b1b !important;
         }
         div[data-testid="stElementContainer"]:has(.custom-action-marker) + div[data-testid="stHorizontalBlock"] button:disabled,
         div[data-testid="stElementContainer"]:has(.custom-action-marker) + div div[data-testid="stHorizontalBlock"] button:disabled,
@@ -460,7 +539,7 @@ def save_custom_bet(
         save_type = "複式"
 
     if member_bet_exists(email, bet_date, "會員自定", save_type, nums):
-        st.warning("這筆自定投注已存在：相同日期、來源、種類及號碼不可重複投注。")
+        st.session_state["custom_saved_notice"] = "這筆自定投注已存在，沒有重複儲存。"
         return False
 
     add_member_bet(
@@ -476,8 +555,99 @@ def save_custom_bet(
         total_cost=total_cost,
         notes="會員自定投注",
     )
-    st.success("已儲存至會員投注紀錄。")
     return True
+
+
+def clear_standard_custom_bet() -> None:
+    st.session_state["custom_seed_numbers"] = []
+    st.session_state["custom_picker_seed_numbers"] = []
+    st.session_state["custom_seed_reset_token"] += 1
+    reset_generated_numbers()
+
+
+def generate_standard_custom_bet(seeds: list[int], bet_size: int, signature: tuple) -> None:
+    st.session_state["custom_saved_notice"] = ""
+    st.session_state["custom_save_locked"] = False
+    st.session_state["custom_generated_numbers"] = generate_numbers(seeds, bet_size)
+    st.session_state["custom_generated_signature"] = signature
+
+
+def save_standard_custom_bet(
+    email: str,
+    bet_date: str,
+    bet_type: str,
+    nums: list[int],
+    bet_unit: int,
+    total_bets: int,
+    total_cost: int,
+) -> None:
+    saved = save_custom_bet(
+        email=email,
+        bet_date=bet_date,
+        bet_type=bet_type,
+        nums=nums,
+        bet_unit=bet_unit,
+        total_bets=total_bets,
+        total_cost=total_cost,
+    )
+    if saved:
+        st.session_state["custom_picker_seed_numbers"] = []
+        st.session_state["custom_seed_reset_token"] += 1
+        st.session_state["custom_saved_notice"] = "你的種子選號投注- 已存紀錄。"
+        st.session_state["custom_save_locked"] = True
+
+
+def clear_banker_leg_custom_bet() -> None:
+    st.session_state["custom_seed_numbers"] = []
+    st.session_state["custom_picker_seed_numbers"] = []
+    st.session_state["custom_seed_reset_token"] += 1
+    reset_banker_leg_numbers()
+
+
+def fill_banker_leg_custom_bet(
+    bankers: list[int],
+    legs: list[int],
+    banker_count: int,
+    leg_count: int,
+) -> None:
+    st.session_state["custom_saved_notice"] = ""
+    st.session_state["custom_save_locked"] = False
+    new_bankers, new_legs = fill_banker_leg_numbers(
+        bankers,
+        legs,
+        banker_count=banker_count,
+        leg_count=leg_count,
+    )
+    st.session_state["custom_banker_numbers"] = new_bankers
+    st.session_state["custom_leg_numbers"] = new_legs
+    st.session_state["custom_banker_reset_token"] += 1
+    st.session_state["custom_leg_reset_token"] += 1
+
+
+def save_banker_leg_custom_bet(
+    email: str,
+    bet_date: str,
+    combined_nums: list[int],
+    bankers: list[int],
+    legs: list[int],
+    bet_unit: int,
+    total_bets: int,
+    total_cost: int,
+) -> None:
+    saved = save_custom_bet(
+        email=email,
+        bet_date=bet_date,
+        bet_type="膽拖 [1-5]膽",
+        nums=combined_nums,
+        bankers=bankers,
+        legs=legs,
+        bet_unit=bet_unit,
+        total_bets=total_bets,
+        total_cost=total_cost,
+    )
+    if saved:
+        st.session_state["custom_saved_notice"] = "你的種子選號投注- 已存紀錄。"
+        st.session_state["custom_save_locked"] = True
 
 
 def render_banker_leg_bet_page(email: str, bet_date: str, bet_unit: int) -> None:
@@ -493,15 +663,20 @@ def render_banker_leg_bet_page(email: str, bet_date: str, bet_unit: int) -> None
     )
     min_leg_count = 7 - banker_count
     max_leg_count = 49 - banker_count
+    if st.session_state.get("custom_last_banker_count") != banker_count:
+        st.session_state["custom_last_banker_count"] = banker_count
+        st.session_state[f"custom_leg_count_{banker_count}"] = min_leg_count
+
     leg_count = int(
         st.selectbox(
             "配腳",
             list(range(min_leg_count, max_leg_count + 1)),
-            key="custom_leg_count",
+            key=f"custom_leg_count_{banker_count}",
             on_change=reset_banker_leg_numbers,
         )
     )
 
+    banker_seed_count, leg_seed_count = seed_allocation_for_banker_leg(banker_count)
     bankers = sorted(int(num) for num in st.session_state.get("custom_banker_numbers", []))[:banker_count]
     legs = sorted(
         int(num)
@@ -515,73 +690,66 @@ def render_banker_leg_bet_page(email: str, bet_date: str, bet_unit: int) -> None
     if legs != st.session_state.get("custom_leg_numbers", []):
         st.session_state["custom_leg_numbers"] = legs
 
+    seed_ready = len(bankers) >= banker_seed_count and len(legs) >= leg_seed_count
     selections_complete = len(bankers) == banker_count and len(legs) == leg_count
     total_bets = math.comb(leg_count, 6 - banker_count)
     total_cost = total_bets * bet_unit
     combined_nums = sorted(bankers + legs)
 
+    render_banker_leg_summary(seeds, bankers, legs)
     st.markdown(
         f"""
-        <h7 style="display:block;font-size:1rem;font-weight:800;line-height:1.6;white-space:nowrap;overflow-x:auto;margin:4px 0 8px 0;">
-            每注 ${bet_unit}｜投注注數：{total_bets:,}注｜投注金額：${total_cost:,}
+        <h7 style="display:block;font-size:0.95rem;font-weight:700;line-height:1.45;margin:2px 0 4px 0;color:#374151;">
+            膽拖投注：{banker_count} 膽 + {leg_count} 腳｜每注 ${bet_unit}<br>
+            注數：{total_bets:,}注｜投注金額：${total_cost:,}<br>
+            種子球號選配為：膽選 = {banker_seed_count} 球，配腳 = {leg_seed_count} 球
         </h7>
         """,
         unsafe_allow_html=True,
     )
-    if not selections_complete:
-        st.caption(f"膽拖：{banker_count} 膽 + {leg_count} 腳｜已選膽 {len(bankers)}/{banker_count}｜配腳 {len(legs)}/{leg_count}")
-
-    render_banker_leg_summary(seeds, bankers, legs)
-    st.markdown("---")
-    seed_locked = len(seeds) >= 3 and not selections_complete
-    if seed_locked:
+    if seed_ready and not selections_complete:
         st.info("已選滿 3 球種子，請按「發球補足」或「清除種子球號」重設。")
-    elif not selections_complete:
+    elif not seed_ready:
         render_banker_leg_picker(bankers, legs, banker_count, leg_count)
     render_saved_notice()
 
     st.markdown('<span class="custom-action-marker"></span>', unsafe_allow_html=True)
     clear_col, fill_col, save_col = st.columns(3)
-    if clear_col.button("清除種子球號", key="clear_banker_leg_seed_numbers", use_container_width=True):
-        st.session_state["custom_seed_numbers"] = []
-        st.session_state["custom_seed_reset_token"] += 1
-        reset_banker_leg_numbers()
-        st.rerun()
+    has_banker_leg_seed = bool(bankers or legs)
+    clear_col.markdown('<span class="custom-action-a"></span>', unsafe_allow_html=True)
+    clear_col.button(
+        "重設種子選號",
+        key="clear_banker_leg_seed_numbers",
+        disabled=not has_banker_leg_seed,
+        use_container_width=True,
+        on_click=clear_banker_leg_custom_bet,
+    )
 
-    if fill_col.button("發球補足", key="custom_generate_banker_leg_numbers", use_container_width=True):
-        new_bankers, new_legs = fill_banker_leg_numbers(
-            bankers,
-            legs,
-            banker_count=banker_count,
-            leg_count=leg_count,
-        )
-        st.session_state["custom_banker_numbers"] = new_bankers
-        st.session_state["custom_leg_numbers"] = new_legs
-        st.session_state["custom_banker_reset_token"] += 1
-        st.session_state["custom_leg_reset_token"] += 1
-        st.rerun()
+    fill_col.markdown('<span class="custom-action-b"></span>', unsafe_allow_html=True)
+    fill_col.button(
+        "系統補發種子號",
+        key="custom_generate_banker_leg_numbers",
+        disabled=not seed_ready,
+        use_container_width=True,
+        on_click=fill_banker_leg_custom_bet,
+        args=(bankers, legs, banker_count, leg_count),
+    )
 
-    can_save = bool(bet_date) and selections_complete and total_bets > 0
-    if save_col.button("存會員投注紀錄", key="save_banker_leg_bet", disabled=not can_save, use_container_width=True):
-        saved = save_custom_bet(
-            email=email,
-            bet_date=bet_date,
-            bet_type="膽拖 [1-5]膽",
-            nums=combined_nums,
-            bankers=bankers,
-            legs=legs,
-            bet_unit=bet_unit,
-            total_bets=total_bets,
-            total_cost=total_cost,
-        )
-        if saved:
-            st.session_state["custom_saved_notice"] = "你的種子選號投注- 已存紀錄。"
-            st.rerun()
-
-    if not selections_complete:
-        st.info(
-            f"請完成選號：膽 {len(bankers)}/{banker_count}，配腳 {len(legs)}/{leg_count}。"
-        )
+    can_save = (
+        bool(bet_date)
+        and selections_complete
+        and total_bets > 0
+        and not st.session_state.get("custom_save_locked", False)
+    )
+    save_col.markdown('<span class="custom-action-c"></span>', unsafe_allow_html=True)
+    save_col.button(
+        "儲存至會員投注紀錄",
+        key="save_banker_leg_bet",
+        disabled=not can_save,
+        use_container_width=True,
+        on_click=save_banker_leg_custom_bet,
+        args=(email, bet_date, combined_nums, bankers, legs, bet_unit, total_bets, total_cost),
+    )
 
 
 def render_custom_bet_page(email: str) -> None:
@@ -604,49 +772,68 @@ def render_custom_bet_page(email: str) -> None:
 
     total_bets = calculate_total_bets(bet_type, bet_size)
     total_cost = total_bets * bet_unit
-    st.markdown(f"**投注注數：{total_bets:,} 注｜投注金額：${total_cost:,}**")
 
     seeds = st.session_state["custom_seed_numbers"]
     nums = st.session_state.get("custom_generated_numbers", [])
     render_seed_picker(seeds, nums)
 
-    if not seeds:
-        st.info("請先選擇 1 至 3 個種子球。")
-        st.markdown('<span class="custom-action-marker"></span>', unsafe_allow_html=True)
-        if st.button("清除種子號", key="clear_custom_seed_numbers_empty", disabled=True):
-            pass
-        return
+    if bet_type == "複式 [7-15]":
+        st.markdown(
+            f"""
+            <h7 style="display:block;font-size:0.95rem;font-weight:700;line-height:1.45;margin:2px 0 4px 0;color:#374151;">
+                複式投注：{bet_size} 球 每注 $ {bet_unit}<br>
+                注數：{total_bets:,} 注｜投注金額：${total_cost:,}
+            </h7>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f"""
+            <h7 style="display:block;font-size:0.95rem;font-weight:700;line-height:1.45;margin:2px 0 4px 0;color:#374151;">
+                單式投注注數：{total_bets:,} 注｜投注金額：${total_cost:,}
+            </h7>
+            """,
+            unsafe_allow_html=True,
+        )
 
     signature = (bet_type, bet_size, bet_unit, tuple(sorted(seeds)), datetime.now().date().isoformat())
 
-    st.markdown('<span class="custom-action-marker"></span>', unsafe_allow_html=True)
-    if st.button("清除種子號", key="clear_custom_seed_numbers", use_container_width=True):
-        st.session_state["custom_seed_numbers"] = []
-        st.session_state["custom_seed_reset_token"] += 1
-        reset_generated_numbers()
-        st.rerun()
-
-    st.markdown("---")
-    st.markdown('<span class="custom-action-marker"></span>', unsafe_allow_html=True)
-    col2, col3 = st.columns(2)
-    if col2.button("系統補足 發球", key="custom_generate_numbers", use_container_width=True):
-        st.session_state["custom_saved_notice"] = ""
-        st.session_state["custom_generated_numbers"] = generate_numbers(seeds, bet_size)
-        st.session_state["custom_generated_signature"] = signature
-        st.rerun()
+    if not seeds:
+        st.info("請先選擇 1 至 3 個種子球。")
     render_saved_notice()
+    st.markdown('<span class="custom-action-marker"></span>', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns(3)
+    col1.markdown('<span class="custom-action-a"></span>', unsafe_allow_html=True)
+    col1.button(
+        "重設種子選號",
+        key="clear_custom_seed_numbers",
+        disabled=not bool(seeds),
+        use_container_width=True,
+        on_click=clear_standard_custom_bet,
+    )
 
-    if col3.button("儲存至投注紀錄", key="save_custom_bet", disabled=(not bool(nums) or not bool(bet_date)), use_container_width=True):
-        if nums:
-            saved = save_custom_bet(
-                email=email,
-                bet_date=bet_date,
-                bet_type=bet_type,
-                nums=nums,
-                bet_unit=bet_unit,
-                total_bets=total_bets,
-                total_cost=total_cost,
-            )
-            if saved:
-                st.session_state["custom_saved_notice"] = "你的種子選號投注- 已存紀錄。"
-                st.rerun()
+    col2.markdown('<span class="custom-action-b"></span>', unsafe_allow_html=True)
+    col2.button(
+        "系統補發種子號",
+        key="custom_generate_numbers",
+        disabled=not bool(seeds),
+        use_container_width=True,
+        on_click=generate_standard_custom_bet,
+        args=(seeds, bet_size, signature),
+    )
+
+    can_save = (
+        bool(nums)
+        and bool(bet_date)
+        and not st.session_state.get("custom_save_locked", False)
+    )
+    col3.markdown('<span class="custom-action-c"></span>', unsafe_allow_html=True)
+    col3.button(
+        "儲存至會員投注紀錄",
+        key="save_custom_bet",
+        disabled=not can_save,
+        use_container_width=True,
+        on_click=save_standard_custom_bet,
+        args=(email, bet_date, bet_type, nums, bet_unit, total_bets, total_cost),
+    )

@@ -180,7 +180,30 @@ def apply_styles() -> None:
 def set_page(page_key: str) -> None:
     """切換主頁面。"""
 
+    if st.session_state.get("current_page") == "member" and page_key != "member":
+        reset_member_custom_bet_state()
     st.session_state["current_page"] = page_key
+
+
+def reset_member_custom_bet_state() -> None:
+    """離開會員投注中心時清空自定投注暫存畫面。"""
+
+    for key in [
+        "custom_seed_numbers",
+        "custom_picker_seed_numbers",
+        "custom_generated_numbers",
+        "custom_generated_signature",
+        "custom_banker_numbers",
+        "custom_leg_numbers",
+        "custom_saved_notice",
+    ]:
+        st.session_state.pop(key, None)
+    for key in [
+        "custom_seed_reset_token",
+        "custom_banker_reset_token",
+        "custom_leg_reset_token",
+    ]:
+        st.session_state[key] = int(st.session_state.get(key, 0)) + 1
 
 
 def render_member_status() -> None:
@@ -198,6 +221,7 @@ def render_member_status() -> None:
                 unsafe_allow_html=True,
             )
             if st.button("登出", key="custom_nav_logout", use_container_width=True):
+                reset_member_custom_bet_state()
                 st.session_state["login_state"] = None
                 st.session_state["login_email_val"] = None
                 st.session_state["login_member_id"] = None

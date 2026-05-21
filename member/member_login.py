@@ -101,6 +101,8 @@ def render_admin_member_manager() -> None:
                 new_email = st.text_input("新信箱", value=email, key=f"email_{member_id}")
                 new_phone = st.text_input("新手機號碼", value=phone, key=f"phone_{member_id}")
                 if st.button("確認修改", key=f"save_member_{member_id}"):
+                    new_email = str(new_email or "").strip().lower()
+                    new_phone = str(new_phone or "").strip()
                     if not is_valid_email(new_email):
                         st.error("Email 格式不正確。")
                     elif not is_valid_local_phone(new_phone):
@@ -133,7 +135,8 @@ def render_login_tab() -> None:
     password = st.text_input("登入密碼", type="password", key="member_login_password")
 
     if st.button("登入", key="login_btn", type="primary"):
-        email = email.strip().lower()
+        email = str(email or "").strip().lower()
+        password = str(password or "")
 
         if not is_valid_email(email):
             st.error("Email 格式不正確。")
@@ -159,8 +162,9 @@ def render_register_tab() -> None:
     reg_password = st.text_input("密碼（6-12 字元）", type="password", key="reg_pwd")
 
     if st.button("註冊", key="reg_btn", type="primary"):
-        reg_email = reg_email.strip().lower()
-        reg_phone = reg_phone.strip()
+        reg_email = str(reg_email or "").strip().lower()
+        reg_phone = str(reg_phone or "").strip()
+        reg_password = str(reg_password or "")
 
         if not is_valid_email(reg_email):
             st.warning("Email 格式不正確。")
@@ -186,8 +190,9 @@ def render_forgot_password_tab() -> None:
     new_password = st.text_input("新密碼（6-12 字元）", type="password", key="forgot_pwd")
 
     if st.button("重設密碼", key="forgot_btn", type="primary"):
-        forgot_email = forgot_email.strip().lower()
-        forgot_phone = forgot_phone.strip()
+        forgot_email = str(forgot_email or "").strip().lower()
+        forgot_phone = str(forgot_phone or "").strip()
+        new_password = str(new_password or "")
 
         if not is_valid_email(forgot_email):
             st.warning("Email 格式不正確。")

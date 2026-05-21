@@ -85,7 +85,7 @@ if prize_csv_lines:
             prize_rows.append(row)
 
 # ===== 顯示最新一期開獎與派彩資訊 =====
-st.markdown('<div style="margin-bottom:2px"><h6 style="font-size:1.4rem; font-weight:bold;display:inline-block;">開獎結果|派彩|下期開獎日期|查詢</h6></div>', unsafe_allow_html=True)
+st.markdown('<div style="margin-bottom:2px"><h7 style="font-size:1.2rem; font-weight:bold;display:inline-block;">開獎結果|派彩|下期開獎日期|查詢</h7></div>', unsafe_allow_html=True)
 if latest_date and latest_numbers:
     week = get_weekday(latest_date)
     st.markdown(f"<div class='section-title' style='font-size:1.2rem; font-weight:bold;'>🛎️ A. 最新一期開獎結果</div>", unsafe_allow_html=True)

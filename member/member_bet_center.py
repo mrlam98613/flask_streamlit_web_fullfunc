@@ -651,6 +651,39 @@ def main() -> None:
         return
 
     st.header("會員投注中心")
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stTabs"] div[role="tablist"] {
+            gap: 2px !important;
+        }
+        div[data-testid="stTabs"] button[role="tab"] {
+            background: #dbeafe !important;
+            color: #1e3a8a !important;
+            border-radius: 8px 8px 0 0 !important;
+            border: 1px solid #bfdbfe !important;
+            font-weight: 800 !important;
+            margin-right: 0 !important;
+            padding: 4px 7px !important;
+            min-width: auto !important;
+        }
+        div[data-testid="stTabs"] button[role="tab"] p {
+            font-size: 13px !important;
+            white-space: nowrap !important;
+        }
+        div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+            background: #93c5fd !important;
+            color: #0f172a !important;
+            border-color: #60a5fa !important;
+        }
+        div[data-testid="stTabs"] button[role="tab"]:hover {
+            background: #bfdbfe !important;
+            color: #1e3a8a !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
     tab_names = ["A. 系統預測投注", "B. 會員自定種類投注", "C. 會員投注紀錄"]
     is_admin = st.session_state.get("login_state") == "admin"

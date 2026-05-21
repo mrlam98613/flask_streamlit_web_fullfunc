@@ -322,7 +322,8 @@ def render_home_page():
     st.markdown("<hr class='section-gap'>", unsafe_allow_html=True)
     # st.write("3.種子過去投注紀錄（核對中獎結果）")
     st.markdown('<div style="margin-bottom:2px"><h6 style="font-size:1.4rem; font-weight:bold;display:inline-block;">2.✌️ 種子投注過往紀錄</h6></div>', unsafe_allow_html=True)
-    st.markdown('<div style="margin-bottom:2px"><h8 style="font-size:1.0rem; font-weight:bold;display:inline-block;"> 👀 (核對預測投注結果 ⭕️ 中正號 🔲 中特號 )</h8></div>', unsafe_allow_html=True)
+    st.markdown('<div style="margin-bottom:2px"><h7 style="font-size:1.0rem; font-weight:bold;display:inline-block;"> ❤️ ---(核對預測投注結果)</h7></div>', unsafe_allow_html=True)
+    st.markdown('<div style="margin-bottom:2px"><h7 style="font-size:1.0rem; font-weight:bold;display:inline-block;"> 🩷 ---⭕️ 中正號 🔲 中特號</h7></div>', unsafe_allow_html=True)
     # 讀取開獎號碼資料（欄位名稱與 B01_check_lottoWin.py 一致）
     lotto_results = {}
     with LOTTO_RESULTS_PATH.open("r", encoding="utf-8-sig") as f:
