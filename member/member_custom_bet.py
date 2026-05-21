@@ -163,15 +163,6 @@ def render_banker_leg_picker(
     """用單一 1-49 鍵盤選膽或配腳。"""
 
     banker_seed_count, leg_seed_count = seed_allocation_for_banker_leg(banker_count)
-    st.markdown(
-        f"""
-        <h7 style="display:block;font-size:0.92rem;font-weight:700;line-height:1.55;margin:6px 0 8px 0;color:#374151;">
-            1，選種子號 最多 1-3 球<br>
-            2，膽拖：{banker_count} 膽 + {leg_count} 腳｜已選膽 {len(bankers)}/{banker_count}｜配腳 {len(legs)}/{leg_count}
-        </h7>
-        """,
-        unsafe_allow_html=True,
-    )
 
     if len(bankers) >= banker_seed_count and leg_seed_count > 0 and len(legs) < leg_seed_count:
         st.session_state["custom_banker_leg_pick_mode"] = "配腳"
@@ -318,11 +309,12 @@ def fill_banker_leg_numbers(
 
     rng = random.Random(datetime.now().strftime("%Y%m%d%H%M%S%f"))
     new_bankers = sorted({int(num) for num in bankers})[:banker_count]
-    pool = [num for num in ALL_NUMBERS if num not in new_bankers]
+    seed_legs = sorted({int(num) for num in legs if int(num) not in new_bankers})[:leg_count]
+    pool = [num for num in ALL_NUMBERS if num not in new_bankers and num not in seed_legs]
     if len(new_bankers) < banker_count:
         new_bankers = sorted(new_bankers + rng.sample(pool, banker_count - len(new_bankers)))
 
-    new_legs = sorted({int(num) for num in legs if int(num) not in new_bankers})[:leg_count]
+    new_legs = sorted(num for num in seed_legs if num not in new_bankers)[:leg_count]
     leg_pool = [num for num in ALL_NUMBERS if num not in new_bankers and num not in new_legs]
     if len(new_legs) < leg_count:
         new_legs = sorted(new_legs + rng.sample(leg_pool, leg_count - len(new_legs)))
@@ -690,7 +682,9 @@ def render_banker_leg_bet_page(email: str, bet_date: str, bet_unit: int) -> None
     if legs != st.session_state.get("custom_leg_numbers", []):
         st.session_state["custom_leg_numbers"] = legs
 
-    seed_ready = len(bankers) >= banker_seed_count and len(legs) >= leg_seed_count
+    seed_count = len(bankers) + len(legs)
+    has_seed = seed_count > 0
+    seed_limit_reached = seed_count >= 3
     selections_complete = len(bankers) == banker_count and len(legs) == leg_count
     total_bets = math.comb(leg_count, 6 - banker_count)
     total_cost = total_bets * bet_unit
@@ -701,26 +695,27 @@ def render_banker_leg_bet_page(email: str, bet_date: str, bet_unit: int) -> None
         f"""
         <h7 style="display:block;font-size:0.95rem;font-weight:700;line-height:1.45;margin:2px 0 4px 0;color:#374151;">
             膽拖投注：{banker_count} 膽 + {leg_count} 腳｜每注 ${bet_unit}<br>
-            注數：{total_bets:,}注｜投注金額：${total_cost:,}<br>
-            種子球號選配為：膽選 = {banker_seed_count} 球，配腳 = {leg_seed_count} 球
+            注數：{total_bets:,}注｜投注金額：${total_cost:,}
+            <div style="border-top:1px solid #d1d5db;margin:7px 0 6px 0;"></div>
+            1， 用戶選種子號 最多 1-3 球<br>
+            2， 種子球會分配成：膽選 = {banker_seed_count} 球，配腳 = {leg_seed_count} 球
         </h7>
         """,
         unsafe_allow_html=True,
     )
-    if seed_ready and not selections_complete:
+    if seed_limit_reached and not selections_complete:
         st.info("已選滿 3 球種子，請按「發球補足」或「清除種子球號」重設。")
-    elif not seed_ready:
+    elif not seed_limit_reached:
         render_banker_leg_picker(bankers, legs, banker_count, leg_count)
     render_saved_notice()
 
     st.markdown('<span class="custom-action-marker"></span>', unsafe_allow_html=True)
     clear_col, fill_col, save_col = st.columns(3)
-    has_banker_leg_seed = bool(bankers or legs)
     clear_col.markdown('<span class="custom-action-a"></span>', unsafe_allow_html=True)
     clear_col.button(
         "重設種子選號",
         key="clear_banker_leg_seed_numbers",
-        disabled=not has_banker_leg_seed,
+        disabled=not has_seed,
         use_container_width=True,
         on_click=clear_banker_leg_custom_bet,
     )
@@ -729,7 +724,7 @@ def render_banker_leg_bet_page(email: str, bet_date: str, bet_unit: int) -> None
     fill_col.button(
         "系統補發種子號",
         key="custom_generate_banker_leg_numbers",
-        disabled=not seed_ready,
+        disabled=not has_seed,
         use_container_width=True,
         on_click=fill_banker_leg_custom_bet,
         args=(bankers, legs, banker_count, leg_count),
