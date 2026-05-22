@@ -403,7 +403,7 @@ def render_home_page():
             highlight = {"main": win_main_set}
             if win_special:
                 highlight["special"] = win_special
-            render_balls(nums, label="過去投注號：", highlight=highlight)
+            render_balls(nums, label="投注：", highlight=highlight)
             # 中獎行
             if win_score == 0:
                 st.markdown(f"<div style='margin-bottom:2px'><span style='font-weight:bold;'> 中 = {win_score} 球 |  獎項: {prize} | 派彩:$ {payout} --  😊</span></div>", unsafe_allow_html=True)

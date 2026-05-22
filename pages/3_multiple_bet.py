@@ -184,7 +184,7 @@ def render_multiple_bet_page():
     )
 
     st.markdown('<div class="mb-wrap">', unsafe_allow_html=True)
-    st.markdown('<div class="mb-title">中獎派彩明細</div>', unsafe_allow_html=True)
+    st.markdown('<div class="mb-title">複式中獎派彩明細</div>', unsafe_allow_html=True)
     st.markdown(
         f"""
         <div class="mb-kpi">

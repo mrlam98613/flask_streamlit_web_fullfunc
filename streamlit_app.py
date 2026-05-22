@@ -157,6 +157,27 @@ def apply_styles() -> None:
             min-height: 30px !important;
             font-size: 12px !important;
         }
+        div[data-testid="stSegmentedControl"] {
+            width: 100%;
+            margin: 0 0 8px 0;
+        }
+        div[data-testid="stSegmentedControl"] button {
+            min-height: 32px !important;
+            border-radius: 8px !important;
+            font-size: 13px !important;
+            font-weight: 700 !important;
+        }
+        div[data-testid="stSegmentedControl"] button[aria-pressed="true"],
+        div[data-testid="stSegmentedControl"] button[aria-selected="true"] {
+            background: #dbeafe;
+            border-color: #93c5fd !important;
+            color: #1d4ed8 !important;
+        }
+        div[data-testid="stSegmentedControl"] button[aria-pressed="true"] p,
+        div[data-testid="stSegmentedControl"] button[aria-selected="true"] p {
+            color: #1d4ed8 !important;
+            font-weight: 700 !important;
+        }
         @media (max-width: 430px) {
             .block-container {
                 padding-left: 0.75rem;
@@ -262,18 +283,18 @@ def render_calculator_subnav() -> None:
     """計算機頁面的次導航。"""
 
     current = st.session_state.get("calculator_page", "multiple")
-    st.markdown('<div class="subnav">', unsafe_allow_html=True)
-    cols = st.columns(2)
-    for col, (key, item) in zip(cols, CALCULATOR_PAGES.items()):
-        if col.button(
-            item["label"],
-            key=f"calculator_nav_{key}",
-            type="primary" if current == key else "secondary",
-            use_container_width=True,
-        ):
-            st.session_state["calculator_page"] = key
-            st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+    selected = st.segmented_control(
+        "投注派彩計算類型",
+        options=list(CALCULATOR_PAGES.keys()),
+        default=current,
+        format_func=lambda key: CALCULATOR_PAGES[str(key)]["label"],
+        key="calculator_page_selector",
+        label_visibility="collapsed",
+        width="stretch",
+    )
+    if selected in CALCULATOR_PAGES and selected != current:
+        st.session_state["calculator_page"] = selected
+        st.rerun()
 
 
 def run_page_file(path: Path) -> None:

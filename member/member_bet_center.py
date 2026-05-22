@@ -107,6 +107,21 @@ def format_date_with_weekday(date_text: str) -> str:
     return f"{date_text}（星期{week_map[dt.weekday()]}）"
 
 
+def format_date_with_weekday_short(date_text: str) -> str:
+    """把 yyyy-mm-dd 顯示成 yyyy-mm-dd (X)。"""
+
+    if not date_text:
+        return ""
+
+    try:
+        dt = datetime.strptime(date_text, "%Y-%m-%d")
+    except ValueError:
+        return date_text
+
+    week_map = ["一", "二", "三", "四", "五", "六", "日"]
+    return f"{date_text} ({week_map[dt.weekday()]})"
+
+
 def load_system_prediction_rows() -> list[list[int]]:
     """讀取系統預測的下期單式投注號碼。"""
 
@@ -168,7 +183,7 @@ def render_ball_images(nums: list[int], highlight: dict | None = None) -> None:
             )
 
     st.markdown(
-        f"<div style='display:flex;align-items:center;gap:2px;flex-wrap:wrap;'>{''.join(parts)}</div>",
+        f"<div style='display:flex;align-items:center;gap:2px;flex-wrap:wrap;margin:4px 0;'>{''.join(parts)}</div>",
         unsafe_allow_html=True,
     )
 
@@ -208,6 +223,56 @@ def calculate_simple_payout(numbers: list[int], draw_result: dict, bet_unit: int
     if bet_unit == 5:
         return int(payout / 2)
     return int(payout)
+
+
+def calculate_hit_summary(numbers: list[int], draw_result: dict | None) -> tuple[float | None, str, dict]:
+    """計算中獎球數、獎項及球圖高亮。"""
+
+    if not draw_result:
+        return None, "-", {}
+
+    number_set = {int(num) for num in numbers}
+    win_main_set = number_set & draw_result["main"]
+    win_special = draw_result["special"] if draw_result["special"] in number_set else None
+    score = len(win_main_set) + (0.5 if win_special else 0.0)
+    prize = "0"
+    for rule_score in sorted(PRIZE_TABLE.keys(), reverse=True):
+        if score >= rule_score:
+            prize = {
+                6.0: "頭獎",
+                5.5: "二獎",
+                5.0: "三獎",
+                4.5: "四獎",
+                4.0: "五獎",
+                3.5: "六獎",
+                3.0: "七獎",
+            }.get(rule_score, "0")
+            break
+
+    highlight = {"main": win_main_set}
+    if win_special:
+        highlight["special"] = win_special
+    return score, prize, highlight
+
+
+def format_hit_score(score: float | None) -> str:
+    """中獎球數格式，例如 0.5、1、1.5。"""
+
+    if score is None:
+        return "-"
+    return str(int(score)) if float(score).is_integer() else f"{score:g}"
+
+
+def format_result_mood(score: float | None) -> str:
+    """根據中獎球數顯示開獎心情。"""
+
+    if score is None:
+        return "開獎心情 -- 等待開獎"
+    if score == 0:
+        return "開獎心情 -- 😊"
+    if score < 3:
+        return "開獎心情 -- 🩷"
+    return "開獎心情 -- 🏆"
 
 
 def enrich_bet_rows_with_results(rows: list[dict]) -> list[dict]:
@@ -393,17 +458,54 @@ def render_bet_records_tab(email: str, key_prefix: str = "member") -> None:
         <style>
         .bet-card {
             min-width: 360px;
+            margin-top: -4px;
+            margin-bottom: -8px;
         }
         .bet-card-title {
             font-weight: 700;
-            font-size: 13px;
-            line-height: 1.45;
-            margin-bottom: 6px;
+            font-size: 14px;
+            line-height: 1.35;
+            margin-bottom: 5px;
+        }
+        .bet-card-date {
+            font-weight: 700;
+            font-size: 14px;
+            line-height: 1.35;
+            margin-bottom: 5px;
         }
         .bet-record-meta {
             font-size: 14px;
-            line-height: 1.5;
-            margin-top: 6px;
+            font-weight: 700;
+            line-height: 1.35;
+            margin-top: 5px;
+        }
+        .bet-record-result {
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.35;
+            margin-top: 4px;
+        }
+        .bet-status-unopened {
+            color: #dc2626;
+            font-weight: 800;
+        }
+        .bet-record-mood {
+            font-size: 14px;
+            font-weight: 800;
+            line-height: 1.35;
+            margin-top: 4px;
+            margin-bottom: 0;
+        }
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(.bet-card) {
+            padding-top: 4px !important;
+            padding-bottom: 0 !important;
+            margin-bottom: 6px !important;
+        }
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(.bet-card) [data-testid="stVerticalBlock"] {
+            gap: 0.1rem !important;
+        }
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(.bet-card) div[data-testid="stMarkdownContainer"] p {
+            margin: 0 !important;
         }
         .delete-zone div[data-testid="stHorizontalBlock"] {
             align-items: center;
@@ -454,7 +556,23 @@ def render_bet_records_tab(email: str, key_prefix: str = "member") -> None:
             display: flex;
             justify-content: flex-start;
             align-items: center;
-            margin-top: 6px;
+            margin-top: -2px;
+            margin-bottom: -18px;
+            padding: 0;
+            line-height: 1;
+        }
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(.bet-card) div[data-testid="stCheckbox"] {
+            margin-top: -12px !important;
+            margin-bottom: -20px !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            min-height: 20px !important;
+        }
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(.bet-card) div[data-testid="stCheckbox"] label {
+            min-height: 20px !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            font-size: 13px !important;
         }
         </style>
         """,
@@ -520,43 +638,38 @@ def render_bet_records_tab(email: str, key_prefix: str = "member") -> None:
         numbers = json.loads(row.get("numbers") or "[]")
         bankers = json.loads(row.get("bankers") or "[]")
         legs = json.loads(row.get("legs") or "[]")
-        highlight = {}
+        display_numbers = [int(num) for num in (bankers + legs if bankers or legs else numbers)]
         draw_result = lotto_results.get(row.get("bet_date", ""))
-        if draw_result:
-            number_set = {int(num) for num in numbers}
-            win_main_set = number_set & draw_result["main"]
-            win_special = draw_result["special"] if draw_result["special"] in number_set else None
-            highlight = {"main": win_main_set}
-            if win_special:
-                highlight["special"] = win_special
+        hit_score, prize_name, highlight = calculate_hit_summary(display_numbers, draw_result)
 
         with st.container(border=True):
             st.markdown('<div class="bet-card">', unsafe_allow_html=True)
             st.markdown(
                 f"""
-                <div class="bet-card-title">
-                    {row.get('bet_type', '')} | 投注開獎日期：{row.get('bet_date', '')} | {row.get('bet_source', '')}
-                </div>
+                <div class="bet-card-title">{row.get('bet_type', '')} | {row.get('bet_source', '')}</div>
+                <div class="bet-card-date">投注開獎日期：{format_date_with_weekday_short(row.get('bet_date', ''))}</div>
                 """,
                 unsafe_allow_html=True,
             )
 
-            if row.get("bet_type") == "膽拖" and (bankers or legs):
-                render_ball_images([int(num) for num in bankers], highlight=highlight)
-                st.markdown(
-                    "<div style='font-weight:800;margin:2px 0;'>+</div>",
-                    unsafe_allow_html=True,
-                )
-                render_ball_images([int(num) for num in legs], highlight=highlight)
-            else:
-                render_ball_images([int(num) for num in numbers], highlight=highlight)
+            render_ball_images(display_numbers, highlight=highlight)
             payout = int(row.get("payout") or 0)
-            payout_text = "-" if row.get("result_status") == "未開獎" else f"${payout:,}"
+            result_status = str(row.get("result_status") or "")
+            status_html = (
+                f'<span class="bet-status-unopened">{result_status}</span>'
+                if result_status == "未開獎"
+                else result_status
+            )
+            payout_text = "0" if result_status == "未開獎" else f"{payout:,}"
             st.markdown(
                 f"""
                 <div class="bet-record-meta">
-                    金額：{int(row.get('total_cost') or 0):,}｜狀態：{row.get('result_status', '')}｜派彩：{payout_text}
+                    金額$：{int(row.get('total_cost') or 0):,}｜狀態：{status_html}
                 </div>
+                <div class="bet-record-result">
+                    中：{format_hit_score(hit_score)} 球｜獎項：{prize_name}｜派彩：{payout_text}
+                </div>
+                <div class="bet-record-mood">{format_result_mood(hit_score)}</div>
                 """,
                 unsafe_allow_html=True,
             )

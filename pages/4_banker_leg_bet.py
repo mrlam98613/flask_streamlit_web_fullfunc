@@ -171,12 +171,12 @@ def render_banker_leg_page():
 
     # 已移除重複規則說明，避免 table 下方再出現一行重複提示
     # ── 區塊一：投注查詢 ──────────────────────────────
-    st.markdown('<p class="bk-section">▌ 投注查詢</p>', unsafe_allow_html=True)
+    st.markdown('<p class="bk-section"> 膽拖投注查詢</p>', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
     with col1:
         bankers = int(st.number_input(
-            "投注膽數（1–5）",
+            "投注膽數(1-5)",
             min_value=1, max_value=5, value=1, step=1,
         ))
     with col2:
@@ -211,7 +211,7 @@ def render_banker_leg_page():
     st.markdown('<hr class="bk-dashed">', unsafe_allow_html=True)
 
     # ── 區塊二：中獎派彩查詢 ──────────────────────────
-    st.markdown('<p class="bk-section">▌ 中獎派彩查詢</p>', unsafe_allow_html=True)
+    st.markdown('<p class="bk-section">膽拖中獎派彩查詢</p>', unsafe_allow_html=True)
 
     st.markdown(
         '<p class="bk-toggle-hint">輸入中獎球數（膽 / 配腳）。如其中一球是特號，請勾選對應位置（算 0.5 球）。設定完成後按「計算派彩」。</p>',
@@ -221,7 +221,7 @@ def render_banker_leg_page():
     col3, col4 = st.columns(2)
     with col3:
         hit_banker_total = int(st.number_input(
-            f"命中膽號數（0–{bankers}）",
+            f"命中膽號數(0 - {bankers})",
             min_value=0,
             max_value=bankers,
             value=0,
@@ -230,7 +230,7 @@ def render_banker_leg_page():
         ))
     with col4:
         hit_legs_total = int(st.number_input(
-            f"命中配腳數（0–{legs}）",
+            f"命中配腳數(0 - {legs})",
             min_value=0,
             max_value=legs,
             value=0,
@@ -240,7 +240,7 @@ def render_banker_leg_page():
 
     special_side = st.radio(
         "特號位置（只能擇一）",
-        options=["無", "膽號", "配腳"],
+        options=["無", "在膽號", "在配腳"],
         horizontal=True,
         index=0,
         key="bk_special_side",

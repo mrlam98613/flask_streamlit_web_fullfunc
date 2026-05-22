@@ -1,6 +1,6 @@
 # 這程式嘗試自己製作
 # flask + streamlit + python 程式運作
-
+# Zeabur VPS 運行測試 
 
 
 ## 1，當程式初始的第一投注，已電腦隨機發球為標準。
