@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""新版種子投注主流程。
+"""
+新版種子投注主流程。
+主要回傳程式，
+1, seed_lotto_strategy.py 內的種子投注策略，會被 A1_seedBet_main.py 呼叫。
+    see_lotto_strategy, 
+    包含：res_predict_N1.._n6.py
+    func2_RBG_collect_5balls_.py
+    
+2, 這支程式雙模式，核對 + 預測。
+3, 刪除 bet_data/*.csv 後，全新輸入回測期數，會自動重新初始化回測。
 
-設計目標：
+重設回測參數：
 1. 不改動舊版 msk_seedLotto_apps/ 任何檔案。
 2. 只讀取 A_msk_lottery_data_folder/ 內已由 Z3 驗證/複製的開獎資料。
 3. 所有投注結果只寫入本資料夾 bet_data/。
@@ -18,33 +27,36 @@ import re
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, cast
-
+from typing import Iterable
 import pandas as pd
 from pandas.errors import ParserWarning
 
+''' 重點傳入種子投注策略 '''
+import seed_lotto_strategy
 
 CURRENT_DIR = Path(__file__).resolve().parent
 WORKSPACE_ROOT = CURRENT_DIR.parent
-DATA_DIR = WORKSPACE_ROOT / "A_msk_lottery_data_folder"
+# 預測data目錄
 BET_DATA_DIR = CURRENT_DIR / "bet_data"
+# 所有開獎紀錄目錄
+DATA_DIR = WORKSPACE_ROOT / "A_msk_lottery_data_folder"
 
-import seed_lotto_strategy
-
-
+# 2002_lastDraw開獎紀錄
 DRAW_HISTORY_CSV = DATA_DIR / "M2_last_upgrade_lotto_data.csv"
+# 最後派彩結果紀錄
 DRAW_PRIZE_CSV = DATA_DIR / "M3_lotto_prize_results.csv"
 
-BET_RECORD_CSV = BET_DATA_DIR / "my_bet_records.csv"
-WIN_RECORD_CSV = BET_DATA_DIR / "my_win_results.csv"
-NEXT_RECORD_CSV = BET_DATA_DIR / "nextBetDraw_record.csv"
-NEXT_SUMMARY_CSV = BET_DATA_DIR / "nextBetDraw_summary.csv"
+BET_RECORD_CSV = BET_DATA_DIR / "my_bet_records.csv" # 投注總紀錄
+WIN_RECORD_CSV = BET_DATA_DIR / "my_win_results.csv" #核對中獎總紀錄
+NEXT_RECORD_CSV = BET_DATA_DIR / "nextBetDraw_record.csv" # 下期投注紀錄
+NEXT_SUMMARY_CSV = BET_DATA_DIR / "nextBetDraw_summary.csv" # 下期日期及種子提示
 
-BACKTEST_LAST_DRAW = 35
-BET_UNIT = 10
-COLLECT_BALLS_BREAK = 9
-DRAW_SAME_COLOR = 3
-
+# ---------------------------------------- parmater -----------------------------|
+BACKTEST_LAST_DRAW = 40 # 刪除data, 重新輸入回測期數
+BET_UNIT = 10 # 計算以 10 元投注為單位。
+COLLECT_BALLS_BREAK = 9 # RBG 三種顏色球收集 9 球以上就停止。
+DRAW_SAME_COLOR = 3 #收集該期有周一顏色的球數。例如該期紅色球有 3 球以上。
+# ===============================================================================
 DRAW_COLUMNS = ["ndate", "N1", "N2", "N3", "N4", "N5", "N6", "N7"]
 BET_COLUMNS = ["bet_date", "N1", "N2", "N3", "N4", "N5", "N6"]
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -80,6 +92,12 @@ WEEK_ZH = {
     "7": "星期日",
 }
 ZH_WEEK_TO_NUM = {"一": "1", "二": "2", "三": "3", "四": "4", "五": "5", "六": "6", "日": "7"}
+
+
+def iso_week_from_date(date_text: str) -> str:
+    """由 YYYY-MM-DD 日期推算星期數字；星期一=1，星期日=7。"""
+
+    return str(dt.datetime.strptime(date_text, "%Y-%m-%d").isoweekday())
 
 
 @dataclass(frozen=True)
@@ -124,6 +142,20 @@ def read_csv_required(path: Path, required_columns: list[str]) -> pd.DataFrame:
     if df.empty:
         raise ValueError(f"{path.name} 沒有資料")
     return df
+
+
+def positive_int_or_none(value: object) -> int | None:
+    """把中獎紀錄欄位轉成正整數；非數字例如「未開獎」會略過。"""
+
+    if value is None:
+        return None
+    if not isinstance(value, (int, float, str, bytes)):
+        return None
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
 
 
 def load_draw_history() -> pd.DataFrame:
@@ -182,7 +214,7 @@ def load_next_draw_info(df_all: pd.DataFrame) -> NextDrawInfo:
     anchor_date, _ = parse_zh_date(row_map["日期"][0])
     next_draw_date, next_week = parse_zh_date(row_map["開獎日期"][0])
     if next_week is None:
-        raise ValueError(f"M3 下期開獎日期缺少星期：{row_map['開獎日期'][0]}")
+        next_week = iso_week_from_date(next_draw_date)
 
     m3_numbers = [int(n.strip()) for n in row_map["號碼"][0].split(",") if n.strip()]
     if len(m3_numbers) != 7:
@@ -202,17 +234,44 @@ def load_next_draw_info(df_all: pd.DataFrame) -> NextDrawInfo:
 def normalize_bets(bets: Iterable[Iterable[int]] | Iterable[int]) -> list[list[int]]:
     """接受單注或多注，統一轉成 list[list[int]]。"""
 
-    bet_list = list(bets)
+    # 若 bets 是單一 int，直接包成 list[list[int]]
+    if isinstance(bets, int):
+        return [[int(bets)]]
+    # 若 bets 是 str/bytes，視為錯誤
+    if isinstance(bets, (str, bytes)):
+        raise TypeError("投注資料不能是字串型別")
+    # 若 bets 是 numpy array 或 pandas Series，轉成 list
+    try:
+        import numpy as np
+        import pandas as pd
+        if isinstance(bets, (np.ndarray, pd.Series)):
+            bet_list = bets.tolist()
+        else:
+            bet_list = list(bets)
+    except ImportError:
+        bet_list = list(bets)
     if not bet_list:
         return []
-
-    first = bet_list[0]
-    if isinstance(first, int):
-        single_bet = cast(list[int], bet_list)
-        return [sorted(int(n) for n in single_bet)]
-
-    multi_bets = cast(list[Iterable[int]], bet_list)
-    return [sorted(int(n) for n in bet) for bet in multi_bets]
+    # 嚴格檢查 bet_list 內容型別
+    if all(isinstance(x, (int, float, str)) for x in bet_list):
+        # 確保 bet_list 不是單一 Iterable[int] 物件
+        def _to_int_safe(n):
+            if not isinstance(n, (int, float, str)):
+                raise TypeError(f"投注號碼型別錯誤: {n} ({type(n)})")
+            return int(n)
+        return [sorted(_to_int_safe(n) for n in bet_list)]
+    elif all(isinstance(x, (list, tuple)) and all(isinstance(y, (int, float, str)) for y in x) for x in bet_list):
+        # bet_list 是 Iterable[Iterable[int]]
+        assert all(hasattr(bet, '__iter__') for bet in bet_list), "bet 不是可疊代型別"
+        from typing import Iterable as _IterableType
+        bet_list_typed: list[_IterableType[int | float | str]] = bet_list  # type: ignore
+        def _to_int_safe(n):
+            if not isinstance(n, (int, float, str)):
+                raise TypeError(f"投注號碼型別錯誤: {n} ({type(n)})")
+            return int(n)
+        return [sorted(_to_int_safe(n) for n in bet) for bet in bet_list_typed]
+    else:
+        raise TypeError(f"投注資料型別不正確: {bet_list}")
 
 
 def normalize_position_rows(rows: Iterable[Iterable[int]]) -> list[list[int]]:
@@ -250,17 +309,17 @@ def replace_rows_for_date(path: Path, date_col: str, date_value: str, rows: list
 
     out_df.to_csv(path, index=False)
 
-
+''' 儲存下期預測投注紀錄 '''
 def save_bet_record(bet_date: str, bets: Iterable[Iterable[int]] | Iterable[int]) -> None:
     bet_rows = rows_from_bets(bet_date, normalize_bets(bets))
     replace_rows_for_date(BET_RECORD_CSV, "bet_date", bet_date, bet_rows)
 
-
+''' 儲存投注中獎種除紀錄 '''
 def save_win_record(bet_date: str, win_rows: Iterable[Iterable[int]]) -> None:
     rows = rows_from_bets(bet_date, normalize_position_rows(win_rows))
     replace_rows_for_date(WIN_RECORD_CSV, "bet_date", bet_date, rows)
 
-
+''' 儲存下期預測投注紀錄 '''
 def save_next_prediction(bet_date: str, bets: Iterable[Iterable[int]] | Iterable[int]) -> None:
     rows = rows_from_bets(bet_date, normalize_bets(bets))
     ensure_bet_data_dir()
@@ -281,6 +340,7 @@ def save_next_prediction_summary(next_info: NextDrawInfo, seed_numbers: list[int
         "has_seed": "yes" if seed_numbers else "no",
     }
     pd.DataFrame([row]).to_csv(NEXT_SUMMARY_CSV, index=False)
+
 
 
 def read_bets_for_date(bet_date: str) -> pd.DataFrame:
@@ -322,10 +382,10 @@ def latest_seed_numbers_from_win_record() -> list[int]:
     last_date = str(valid_df["bet_date"].max())
     last_rows = valid_df[valid_df["bet_date"] == last_date]
     seeds = {
-        int(value)
+        number
         for _, row in last_rows.iterrows()
         for value in row.iloc[1:7]
-        if pd.notna(value) and int(value) > 0
+        if (number := positive_int_or_none(value)) is not None
     }
     return sorted(seeds)
 
@@ -371,13 +431,15 @@ def check_and_score(bet: list[int], draw_balls: list[int], special: int) -> tupl
     return matched, special_hit, score, PRIZE_TABLE.get(score, 0)
 
 
+''' -------- 重點回傳，種子投注策略 ---------- '''
 def build_next_bets(
     matched_numbers: list[int],
     last_bet: list[int],
     seed_base: int,
     anchor_date: str,
     df_all: pd.DataFrame,
-) -> list[list[int]]:
+    ) -> list[list[int]]:
+    
     return seed_lotto_strategy.generate_next_bets_with_strategy(
         sorted_matched=matched_numbers,
         last_bet_vals=last_bet,
@@ -533,7 +595,12 @@ def rebuild_next_prediction(df_all: pd.DataFrame, next_info: NextDrawInfo) -> bo
 
     last_settled_date = str(win_df["bet_date"].astype(str).max())
     win_rows = win_df[win_df["bet_date"].astype(str) == last_settled_date]
-    matched = sorted({int(v) for _, row in win_rows.iterrows() for v in row.iloc[1:7] if int(v) > 0})
+    matched = sorted({
+        number
+        for _, row in win_rows.iterrows()
+        for value in row.iloc[1:7]
+        if (number := positive_int_or_none(value)) is not None
+    })
 
     bet_rows = read_bets_for_date(last_settled_date)
     last_bet = bet_values(bet_rows.iloc[-1]) if not bet_rows.empty else random_base_draw()

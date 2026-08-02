@@ -313,6 +313,7 @@ def get_current_page_path(page_key: str) -> Path:
 
 def main() -> None:
     st.set_page_config(page_title="MSK 六合彩投注預測", page_icon="🎯", layout="centered")
+    
     init_state()
     handle_redirects()
     apply_styles()

@@ -238,7 +238,9 @@ typing-extensions==4.15.0
 typing-inspection==0.4.2
     # via pydantic
 urllib3==2.7.0
-    # via requests
+    # via
+    #   flask-st-webapp (pyproject.toml)
+    #   requests
 uvicorn==0.46.0
     # via streamlit
 websockets==15.0.1
