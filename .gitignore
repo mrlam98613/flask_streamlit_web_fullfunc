@@ -9,6 +9,11 @@ wheels/
 # Virtual environments
 .venv
 
+# Local databases and user-generated data
+*.db
+*.sqlite
+*.sqlite3
+member/member_bet_dbs/
 
 
 #不上傳至 github

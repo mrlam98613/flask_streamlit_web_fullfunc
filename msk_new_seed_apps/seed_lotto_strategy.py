@@ -97,7 +97,7 @@ def _normalize_interval(pred_interval):
         list: 長度恰好為 6 的區間位置列表
     """
     # 提取有效的區間值（過濾 None）
-    vals = [int(x) for x in pred_interval[:6] if x is not None]
+    vals = [int(x) for x in pred_interval[:6] if x is not None and isinstance(x, (int, float, str))]
     
     # 若已有 6 個有效值，直接返回
     if len(vals) >= 6:
@@ -131,7 +131,7 @@ def _recent_30_draw_sets(df_all, anchor_date):
     draw_sets = []
     for _, row in df_hist.iterrows():
         # N1~N6 + N7（特別號）合併成集合
-        draw_sets.append(set(int(x) for x in row.iloc[1:7].values.tolist()))
+        draw_sets.append(set(int(x) for x in row.iloc[1:7].values.tolist() if isinstance(x, (int, float, str))))
     
     return draw_sets
 
@@ -152,7 +152,7 @@ def has_high_overlap_last30(bet_nums, df_all, anchor_date, threshold=5):
         bool: True 表示重覆度高（應重新生成），False 表示可接受
     """
     # 投注號碼轉集合
-    bet_set = set(int(x) for x in bet_nums)
+    bet_set = set(int(x) for x in bet_nums if isinstance(x, (int, float, str)))
     
     # 逐期檢查是否與歷史期數的重覆數超過門檻
     for draw_set in _recent_30_draw_sets(df_all, anchor_date):
@@ -185,7 +185,11 @@ def build_bet_with_seed(seed_nums, pred_interval, top2_candidates, seed_base, ve
         list: 6 個排序後的投注號碼
     """
     # 種子號轉集合
-    seed_set = set(int(x) for x in seed_nums)
+    def _to_int_safe(val):
+        if isinstance(val, (int, float, str)):
+            return int(val)
+        raise TypeError(f"種子號碼型別錯誤: {val} ({type(val)})")
+    seed_set = set(_to_int_safe(x) for x in seed_nums)
     
     # 若種子數已 >= 6，直接返回前 6 個
     if len(seed_set) >= 6:
@@ -206,7 +210,7 @@ def build_bet_with_seed(seed_nums, pred_interval, top2_candidates, seed_base, ve
     used = set(seed_set)  # 記錄已使用號碼（包含種子）
     
     # RBG 候選去掉已用的種子號
-    candidate_set = set(int(x) for x in top2_candidates) - seed_set
+    candidate_set = set(_to_int_safe(x) for x in top2_candidates) - seed_set
 
     # 建立獨立的亂數生成器，避免全域狀態污染
     rng = random.Random(seed_base)
@@ -265,7 +269,10 @@ def build_bet_with_seed(seed_nums, pred_interval, top2_candidates, seed_base, ve
     return sorted(list(seed_set) + fill_nums)
 
 
-def generate_bet_with_recheck(seed_nums, pred_interval, top2_candidates, df_all, anchor_date, seed_base,
+def generate_bet_with_recheck(seed_nums, 
+                              pred_interval, 
+                              top2_candidates, 
+                              df_all, anchor_date, seed_base,
                               overlap_threshold=5, max_tries=40, verbose=False):
     """
     產生投注並反覆檢查與近 30 期的重覆程度。
@@ -369,7 +376,8 @@ def _fallback_seed_bets(sorted_matched, last_bet_vals, seed_base):
       - 中 0 球：沿用上一注
       - 中 1 球：1 注（1 種子 + 5 隨機）
       - 中 2 球：2 注（各 1 種子 + 5 隨機）
-      - 中 3+ 球：3 注（前 3 球做 C(3,2) 組合，各 + 4 隨機）
+      - 中 3 球：3 注（每注各帶 1 個種子）
+      - 中 4+ 球：最多 3 注（由前 4 個種子混合成二連種子）
     
     Args:
         sorted_matched (list): 中獎種子號
@@ -402,15 +410,23 @@ def _fallback_seed_bets(sorted_matched, last_bet_vals, seed_base):
             next_bets.append(sorted([seed] + lucky))
         return next_bets
 
-    # ── 中 3+ 球 ──
-    # 取前 3 球做 C(3,2)=3 種組合
-    pairs = list(combinations(sorted_matched[:3], 2))
+    # ── 中 3 球：3 個單種子，各產生一注 ──
+    if n_matched == 3:
+        for i, seed in enumerate(sorted_matched[:3]):
+            avail = [n for n in range(1, 50) if n != seed]
+            rng = random.Random(seed_base + i)
+            lucky = rng.sample(avail, 5)
+            next_bets.append(sorted([seed] + lucky))
+        return next_bets
+
+    # ── 中 4+ 球：從前 4 球混合二連種子，最多 3 注 ──
+    pairs = list(combinations(sorted_matched[:4], 2))[:3]
     for i, pair in enumerate(pairs):
-        pair_list = list(pair)
-        avail = [n for n in range(1, 50) if n not in pair_list]
+        seed_pair = list(pair)
+        avail = [n for n in range(1, 50) if n not in seed_pair]
         rng = random.Random(seed_base + i)
         lucky = rng.sample(avail, 4)
-        next_bets.append(sorted(pair_list + lucky))
+        next_bets.append(sorted(seed_pair + lucky))
     
     return next_bets
 
@@ -427,7 +443,8 @@ def generate_next_bets_with_strategy(sorted_matched, last_bet_vals, anchor_date,
       4. 按種子數決定投注組數：
          - 中 1 球：1 組（1 種子 + 策略補號）
          - 中 2 球：2 組（各 1 種子 + 策略補號）
-         - 中 3+ 球：3 組（2-種子組合 + 策略補號）
+         - 中 3 球：3 組（各 1 種子 + 策略補號）
+         - 中 4+ 球：最多 3 組（由前 4 個種子混合二連種子 + 策略補號）
       5. 每注進行近 30 期重覆檢查，若過高則重試（最多 40 次）
     
     Args:
@@ -442,27 +459,14 @@ def generate_next_bets_with_strategy(sorted_matched, last_bet_vals, anchor_date,
     Returns:
         list: 下期投注列表（每注一個 6 元素列表）
     """
-    # ── 取策略上下文（所有路徑都需要）──
+    # ── 中 0 球：沿用上一注，直到命中才產生種子號 ──
+    if len(sorted_matched) == 0:
+        return [last_bet_vals]
+
+    # ── 取策略上下文（有種子號時才需要）──
     ctx = get_strategy_context(anchor_date, collect_balls_break=collect_balls_break, draw_same_color=draw_same_color)
     pred_interval = ctx.get("pred_interval", [])
     top2_candidates = ctx.get("top2_candidates", [])
-
-    # ── 中 0 球：用區間+RBG生成1注（不再沿用舊注）──
-    if len(sorted_matched) == 0:
-        if len(pred_interval) >= 6 and len(top2_candidates) > 0:
-            bet = generate_bet_with_recheck(
-                seed_nums=[],
-                pred_interval=pred_interval,
-                top2_candidates=top2_candidates,
-                df_all=df_all,
-                anchor_date=anchor_date,
-                seed_base=seed_base,
-                overlap_threshold=5,
-                max_tries=40,
-                verbose=True,
-            )
-            return [sorted(bet)]
-        return [last_bet_vals]  # 策略資料不足才沿用舊注
 
     # ── 策略資料不足 => 回退到備用規則 ──
     if len(pred_interval) < 6 or len(top2_candidates) == 0:
@@ -477,9 +481,12 @@ def generate_next_bets_with_strategy(sorted_matched, last_bet_vals, anchor_date,
     elif len(sorted_matched) == 2:
         # 中 2 球：2 組（各 1 種子）
         seed_groups = [[sorted_matched[0]], [sorted_matched[1]]]
+    elif len(sorted_matched) == 3:
+        # 中 3 球：3 組，各 1 種子
+        seed_groups = [[seed] for seed in sorted_matched[:3]]
     else:
-        # 中 3+ 球：取前 3 球做 C(3,2)=3 組合
-        seed_groups = [list(p) for p in combinations(sorted_matched[:3], 2)]
+        # 中 4+ 球：由前 4 球混合二連種子，最多 3 組
+        seed_groups = [list(p) for p in combinations(sorted_matched[:4], 2)][:3]
 
     # ── 逐組生成投注（含重覆檢查）──
     bets = []

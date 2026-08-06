@@ -5,9 +5,9 @@
 /> 預測下期N1..N6區間號: [0, 1, 2, 3, 4, 4]
 /> 對應下一期日期: 2026-04-21
 /> RBG 顏色集合球需要期數 :[23, 12, 29]
-Red Balls 集合球: [12, 46, 18, 19, 45, 2, 40, 23, 13, 29, 8, 7]
-Blue Balls 集合球: [9, 14, 42, 26, 20, 15, 3, 37, 47, 41, 48, 25]
-Green Balls 集合球: [33, 49, 5, 6, 28, 11, 16, 39, 22, 38, 17, 32]
+    Red Balls 集合球: [12, 46, 18, 19, 45, 2, 40, 23, 13, 29, 8, 7]
+    Blue Balls 集合球: [9, 14, 42, 26, 20, 15, 3, 37, 47, 41, 48, 25]
+    Green Balls 集合球: [33, 49, 5, 6, 28, 11, 16, 39, 22, 38, 17, 32]
 /> 最少 2 色(期數最小): ['Blue', 'Red'] / windows=[12, 23]
 /> 兩色合併預測候選球號: [2, 3, 7, 8, 9, 12, 13, 14, 15, 18, 19, 20, 23, 25, 26, 29, 37, 40, 41, 42, 45, 46, 47, 48] /> 共 24 顆球。
 /> 下一期真實區間(2026-04-21): [0, 0, 0, 1, 2, 4]，區間命中: 4
@@ -195,10 +195,10 @@ def predict_next_draw_intervals(window_list=None, alpha=1.0, anchor_date=None):
     if next_draw_date is None:
         next_draw_date, next_draw_week = res_func_marksix_next_BetDate.get_JC_next_Date()
 
-    # print(
-    #     f"/> 下一期預測(anchor={anchor_date}) => 日期:{next_draw_date} 星期:{next_draw_week} "
-    #     f"窗口:{window_list} 預測區間:{final_pred_sorted}"
-    # )
+    print(
+        f"/> 下一期預測(anchor={anchor_date}) => 日期:{next_draw_date} 星期:{next_draw_week} "
+        f"窗口:{window_list} 預測區間:{final_pred_sorted}"
+    )
 
     return {
         "anchor_date": str(anchor_date),
@@ -211,6 +211,12 @@ def predict_next_draw_intervals(window_list=None, alpha=1.0, anchor_date=None):
     
     
 def main():
+    '''
+    主程式入口 N1..N6 區間預測, 最終輸出結果：
+    /> 下一期預測(anchor=2026-06-14) => 日期:2026-06-18 星期:4 窗口:[8] 預測區間:[0, 0, 1, 2, 3, 4]
+    
+    '''
+    
     clear_screen()
     predict_next_draw_intervals(window_list=[8], alpha=1.0)
     return
