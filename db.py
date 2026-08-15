@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import re
 import sqlite3
 from contextlib import closing
@@ -8,7 +9,8 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-MEMBER_DIR = PROJECT_ROOT / "member"
+DEFAULT_MEMBER_DATA_DIR = PROJECT_ROOT / "member"
+MEMBER_DIR = Path(os.getenv("MEMBER_DATA_DIR", str(DEFAULT_MEMBER_DATA_DIR))).expanduser()
 MEMBER_DB_PATH = MEMBER_DIR / "members.db"
 MEMBER_BET_DB_DIR = MEMBER_DIR / "member_bet_dbs"
 
