@@ -327,7 +327,7 @@ def main() -> None:
         return
 
     run_page_file(get_current_page_path(current_page))
-
+#  streamlit run streamlit_app.py
 
 if __name__ == "__main__":
     main()
