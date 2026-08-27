@@ -24,6 +24,8 @@ PRIZE_LEVEL_LABELS = {
     "7": "七獎",
 }
 
+PAYOUT_RESULT_VERSION = 7
+
 def _comb(n: int, r: int) -> int:
     if r < 0 or r > n:
         return 0
@@ -111,6 +113,34 @@ def calculate_banker_leg_payout(
     return total_win_bets, total_payout_confirmed, total_pending_win_bets, pd.DataFrame(rows)
 
 
+def build_payout_detail_lines(prize_df: pd.DataFrame) -> list[str]:
+    lines = []
+    for row in prize_df.to_dict("records"):
+        count = int(row["中獎注數"])
+        if count <= 0:
+            continue
+
+        prize = row["獎級"]
+        unit_payout = row["每注派彩"]
+        payout = row["派彩金額"]
+
+        if unit_payout == "等待馬會公佈":
+            lines.append(f"{prize}: 等待馬會公佈 x {count:,} 注")
+            continue
+
+        unit_text = str(unit_payout).replace("$", "").strip()
+        lines.append(f"{prize}: {unit_text} x {count:,} 注 = {payout}")
+    return lines
+
+
+def get_actual_prize_level(prize_df: pd.DataFrame) -> str:
+    """由實際膽拖拆注結果取得最高中獎獎級，避免只用總球數誤判。"""
+    for row in prize_df.to_dict("records"):
+        if int(row["中獎注數"]) > 0:
+            return str(row["獎級"])
+    return "-"
+
+
 def render_page_styles():
     st.markdown(
         """
@@ -136,6 +166,7 @@ def render_page_styles():
         .bk-rules-table td:last-child{white-space:nowrap;text-align:center;}
         .bk-table-wrap{max-width:560px;margin:8px auto 0 auto;}
         .bk-toggle-hint{font-size:12px;color:#888;margin:4px 0 8px 0;line-height:1.5;}
+        .bk-detail{font-size:14px;line-height:1.8;color:#222;margin:8px 0 10px 0;white-space:pre-wrap;}
         </style>
         """,
         unsafe_allow_html=True,
@@ -246,7 +277,7 @@ def render_banker_leg_page():
         key="bk_special_side",
     )
 
-    current_signature = (bankers, legs, bet_unit, hit_banker_total, hit_legs_total, special_side)
+    current_signature = (PAYOUT_RESULT_VERSION, bankers, legs, bet_unit, hit_banker_total, hit_legs_total, special_side)
     last_signature = st.session_state.get("bk_last_calc_signature")
 
     # 只要條件有改，先清除舊結果，避免顯示過時派彩表
@@ -261,14 +292,19 @@ def render_banker_leg_page():
         st.caption("本條件已計算。請先修改任一中獎條件，再按計算派彩。")
 
     if submit_calc:
-        extra_in_banker = (special_side == "膽號")
-        extra_in_legs = (special_side == "配腳")
+        # 注意：這裏要對應 st.radio 的完整選項文字。
+        # 若判斷錯誤，網頁會把「在膽號 / 在配腳」當成無特號，派彩就不會計算 0.5 半球。
+        extra_in_banker = (special_side == "在膽號")
+        extra_in_legs = (special_side == "在配腳")
 
-        # 若該邊命中為 0，不可算特號，直接取消
-        if hit_banker_total == 0:
-            extra_in_banker = False
-        if hit_legs_total == 0:
-            extra_in_legs = False
+        if extra_in_banker and hit_banker_total == 0:
+            st.error("特號選在膽號時，命中膽號數至少要 1。")
+            st.markdown('</div>', unsafe_allow_html=True)
+            return
+        if extra_in_legs and hit_legs_total == 0:
+            st.error("特號選在配腳時，命中配腳數至少要 1。")
+            st.markdown('</div>', unsafe_allow_html=True)
+            return
 
         # 若有特號，該邊會扣掉 1 粒正號（特號不算正號）
         hit_banker_main = max(0, hit_banker_total - (1 if extra_in_banker else 0))
@@ -279,7 +315,10 @@ def render_banker_leg_page():
         total_hits = banker_ball_display + leg_ball_display
         total_main_hits = hit_banker_main + hit_legs_main
         has_special_hit = bool(extra_in_banker or extra_in_legs)
-        mapped_prize_level = _hits_to_prize_level(total_main_hits, has_special_hit)
+        ball_prize_level = PRIZE_LEVEL_LABELS.get(
+            _hits_to_prize_level(total_main_hits, has_special_hit),
+            "-",
+        )
 
         total_win_bets, total_payout_confirmed, total_pending_win_bets, prize_df = calculate_banker_leg_payout(
             bankers=bankers,
@@ -290,13 +329,18 @@ def render_banker_leg_page():
             extra_in_legs=bool(extra_in_legs),
             bet_unit=bet_unit,
         )
+        actual_prize_level = get_actual_prize_level(prize_df)
 
         st.session_state["bk_last_calc_signature"] = current_signature
         st.session_state["bk_last_payout_result"] = {
+            "result_version": PAYOUT_RESULT_VERSION,
+            "extra_in_banker": bool(extra_in_banker),
+            "extra_in_legs": bool(extra_in_legs),
             "banker_ball_display": banker_ball_display,
             "leg_ball_display": leg_ball_display,
             "total_hits": total_hits,
-            "mapped_prize_level": mapped_prize_level,
+            "ball_prize_level": ball_prize_level,
+            "actual_prize_level": actual_prize_level,
             "total_win_bets": total_win_bets,
             "total_payout_confirmed": total_payout_confirmed,
             "total_pending_win_bets": total_pending_win_bets,
@@ -304,22 +348,33 @@ def render_banker_leg_page():
         }
 
     result = st.session_state.get("bk_last_payout_result")
+    if result is not None and result.get("result_version") != PAYOUT_RESULT_VERSION:
+        st.session_state.pop("bk_last_payout_result", None)
+        st.session_state.pop("bk_last_calc_signature", None)
+        result = None
+
     if result is None:
         st.info("請先設定中獎條件，按「計算派彩」後才顯示派彩表。")
         st.markdown('</div>', unsafe_allow_html=True)
         return
 
     payout_confirmed_str = f"$ {result['total_payout_confirmed']:,}"
-    pending_str = f"{result['total_pending_win_bets']:,} 注（等待馬會公佈）" if result["total_pending_win_bets"] > 0 else "—"
+    payout_detail_lines = build_payout_detail_lines(result["prize_df"])
+    payout_detail_html = "<br>".join(payout_detail_lines) if payout_detail_lines else "沒有中獎獎項明細"
 
     st.markdown(
         f"""
         <div class="bk-kpi">
-            <div class="bk-row"><span class="bk-label">-> </span>
-                <span class="bk-value">膽 {result['banker_ball_display']:.1f} + 配腳 {result['leg_ball_display']:.1f} = {result['total_hits']:.1f} 球 ｜{result['mapped_prize_level']} 獎</span></div>
+            <div class="bk-row"><span class="bk-label">命中球數</span>
+                <span class="bk-value">膽 {result['banker_ball_display']:.1f} + 配腳 {result['leg_ball_display']:.1f} = {result['total_hits']:.1f} 球</span></div>
+            <div class="bk-row"><span class="bk-label">總命中對應獎項</span>
+                <span class="bk-value bk-win">{result.get('ball_prize_level', '-')}</span></div>
+            <div class="bk-row"><span class="bk-label">膽+配腳，會因投注及命中條件，計算注數及獎金。</span>
+                <span class="bk-value bk-win">{result.get('actual_prize_level', '-')}</span></div>
+            <div class="bk-row"><span class="bk-label">派彩明細</span><span class="bk-value bk-win"></span></div>
+            <div class="bk-detail">{payout_detail_html}<br>總派彩 {payout_confirmed_str}</div>
             <div class="bk-row"><span class="bk-label">可計算中獎注數</span><span class="bk-value bk-win">{result['total_win_bets']:,} 注</span></div>
             <div class="bk-row"><span class="bk-label">可計算派彩金額</span><span class="bk-value bk-win">{payout_confirmed_str}</span></div>
-            <div class="bk-row"><span class="bk-label">待公佈注數</span><span class="bk-value bk-pending">{pending_str}</span></div>
         </div>
         """,
         unsafe_allow_html=True,
