@@ -123,14 +123,14 @@ def calculate_mark6_banker(bet_bankers, bet_legs, hit_banker=1, hit_legs=2, extr
 # 範例：2膽拖8腳，中2膽5拖，特別號碼在拖中且選中
 # 膽拖投基查輸入 
 banker = 3 #投注膽數量 1,2,3,4,5 膽
-legs = 5 #投注配腳數量 1膽-6 leg-48 leg，2-5-47，3-4-46，4-3-45，5-2-44
+legs = 6 #投注配腳數量 1膽-6 leg-48 leg，2-5-47，3-4-46，4-3-45，5-2-44
 bet_unit = 5 # 每注金額
 # ----
 
 # 膽拖中基條本輸入
 # 注意：matched_* 為「命中數（可含特號）」。若 *_hit_special=1，表示該區命中中有 1 個是特別號。
-matched_banker = 1 # 命中膽數量（含特號）
-banker_hit_special = 0 # 0 or 1 # 膽中包含特別號
+matched_banker = 3 # 命中膽數量（含特號）
+banker_hit_special = 1 # 0 or 1 # 膽中包含特別號
 matched_legs = 4 # 命中配腳數量（含特號）
 leg_hit_special = 0 # 0 or 1 # 配腳中包含特別號
 
@@ -149,9 +149,9 @@ print('\n--- 六合彩膽拖投注計算 ---\n')
 print(f'投注 {banker} 膽 + {legs} 配腳，總注數：{total_draw} X 每注 ${bet_unit} 注，總金額: {bet_amounts} 元\n')
 
 prize_money = {
-    '頭獎': 10_000_000,
-    '二獎': 1_000_000,
-    '三獎': 100_000,
+    '頭獎': None,
+    '二獎': None,
+    '三獎': None,
     '四獎': 9_600,
     '五獎': 640,
     '六獎': 320,
@@ -163,7 +163,10 @@ legs_ball = matched_legs - (0.5 if leg_hit_special else 0)
 total_ball = banker_ball + legs_ball
 
 print(f'中獎結果：中 {matched_banker} 膽＝{banker_ball:g} 球，配腳 {matched_legs} ＝ {legs_ball:g} 球')
-print(f'總命中 {total_ball:g} 球數')
+print(f'膽 + 配腳 總命中 {total_ball:g} 球數')
+print('- 1 獎，必須要膽號全中正號。')
+print('- 2，3 獎，取決膽號命中數量及配腳組合，不因命中總球數直接固定派彩。')
+print('- 膽拖投注會因投注膽號及配腳命中條件，計算中獎注數及獎金。\n')
 
 total_payout = 0
 for prize in ['頭獎', '二獎', '三獎', '四獎', '五獎', '六獎', '七獎']:
@@ -171,6 +174,9 @@ for prize in ['頭獎', '二獎', '三獎', '四獎', '五獎', '六獎', '七�
     if count <= 0:
         continue
     unit_payout = prize_money[prize]
+    if unit_payout is None:
+        print(f'{prize}: 獎金等馬會公佈 x {count} 注（獎金等馬會公佈）')
+        continue
     if bet_unit == 5:
         unit_payout //= 2
     payout = unit_payout * count
