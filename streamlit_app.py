@@ -27,6 +27,23 @@ PAGES = {
         "bet_path": PROJECT_ROOT / "member" / "member_bet_center.py",
         "login_required": False,
     },
+    "calculator": {
+        "label": "投注派彩計算",
+        "icon": "🧮",
+        "path": PROJECT_ROOT / "pages" / "3_multiple_bet.py",
+        "login_required": False,
+    },
+}
+
+CALCULATOR_PAGES = {
+    "multiple": {
+        "label": "複式",
+        "path": PROJECT_ROOT / "pages" / "3_multiple_bet.py",
+    },
+    "banker": {
+        "label": "膽拖",
+        "path": PROJECT_ROOT / "pages" / "4_banker_leg_bet.py",
+    },
 }
 
 
@@ -37,6 +54,7 @@ def init_state() -> None:
     st.session_state.setdefault("login_email_val", None)
     st.session_state.setdefault("login_member_id", None)
     st.session_state.setdefault("current_page", "predict")
+    st.session_state.setdefault("calculator_page", "multiple")
 
 
 def apply_styles() -> None:
@@ -261,6 +279,24 @@ def handle_redirects() -> None:
         st.session_state["current_page"] = "member"
 
 
+def render_calculator_subnav() -> None:
+    """計算機頁面的次導航。"""
+
+    current = st.session_state.get("calculator_page", "multiple")
+    selected = st.segmented_control(
+        "投注派彩計算類型",
+        options=list(CALCULATOR_PAGES.keys()),
+        default=current,
+        format_func=lambda key: CALCULATOR_PAGES[str(key)]["label"],
+        key="calculator_page_selector",
+        label_visibility="collapsed",
+        width="stretch",
+    )
+    if selected in CALCULATOR_PAGES and selected != current:
+        st.session_state["calculator_page"] = selected
+        st.rerun()
+
+
 def run_page_file(path: Path) -> None:
     """執行原本 pages/member 檔案，保留現有功能。"""
 
@@ -284,6 +320,12 @@ def main() -> None:
     render_top_nav()
 
     current_page = st.session_state.get("current_page", "predict")
+    if current_page == "calculator":
+        render_calculator_subnav()
+        calc_key = st.session_state.get("calculator_page", "multiple")
+        run_page_file(CALCULATOR_PAGES[calc_key]["path"])
+        return
+
     run_page_file(get_current_page_path(current_page))
 #  streamlit run streamlit_app.py
 
