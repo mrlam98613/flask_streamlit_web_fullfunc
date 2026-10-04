@@ -26,5 +26,6 @@ CRON_TZ=Asia/Hong_Kong
 #---
 # check_data_then_seed：配合 A0 後約 3 分鐘檢查。
 # 只有 M2/M3 發現新開獎資料時，才會執行 msk_new_seed_apps/A1_seedBet_main.py。
+#----
 3-59/5 * * * * cd /app && /usr/local/bin/python3 check_data_then_seed.py >> /var/log/cron/msk-seed.log 2>&1
 #---
