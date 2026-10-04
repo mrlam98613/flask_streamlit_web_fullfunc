@@ -21,4 +21,4 @@ member/member_bet_dbs/
 # crontab.txt
 # Local lottery data snapshots
 Z4_lotto_prize_2026_crawler/log/
-Z4_lotto_prize_2026_crawler/Lotto_Data_Folder/*
+# Z4_lotto_prize_2026_crawler/Lotto_Data_Folder/*
