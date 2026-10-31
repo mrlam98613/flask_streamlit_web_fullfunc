@@ -10,7 +10,11 @@ from dataclasses import asdict
 from math import ceil, floor
 from typing import Mapping, Sequence
 
-from s4_v2_group_count_config import MODEL_CONFIG, GroupCountModelConfig
+from s4_v2_group_count_config import (
+    MAIN_CANDIDATE_GROUPS,
+    MODEL_CONFIG,
+    GroupCountModelConfig,
+)
 
 
 def _validate_config(config: GroupCountModelConfig) -> None:
@@ -257,6 +261,113 @@ def build_main_architecture_prediction(
     return {
         "ranking": ranking,
         "allocation": ", ".join(f"{group}[{allocation[group]}]" for group in base),
+        "allocation_by_group": allocation,
         "total": sum(allocation.values()),
+    }
+
+
+def build_main_leg_combinations(
+    ranking: Sequence[str],
+    allocation: Mapping[str, int],
+    max_combinations: int = 3,
+) -> list[dict[str, str | int]]:
+    """建立最多三種主力加配腳組合，每種最多包含三個不同組別。"""
+    if max_combinations <= 0 or len(ranking) < 2:
+        return []
+
+    combination_count = min(max_combinations, len(ranking))
+    combinations: list[dict[str, str | int]] = []
+    for index in range(combination_count):
+        main_group = ranking[index]
+        leg_groups = [
+            ranking[(index + offset) % len(ranking)]
+            for offset in range(1, len(ranking))
+            if ranking[(index + offset) % len(ranking)] != main_group
+        ][:2]
+        main_quota = int(allocation.get(main_group, 0))
+        leg_total = sum(int(allocation.get(group, 0)) for group in leg_groups)
+        legs_text = ", ".join(
+            f"{group}[{int(allocation.get(group, 0))}]" for group in leg_groups
+        )
+        combinations.append({
+            "number": index + 1,
+            "main": f"{main_group}[{main_quota}]",
+            "legs": legs_text,
+            "leg_total": leg_total,
+            "total": main_quota + leg_total,
+        })
+    return combinations
+
+
+def predict_main_and_legs(
+    main_evidence: Sequence[tuple[str, float]],
+    leg_evidence: Mapping[str, Mapping[str, float]],
+    observed_leg_max_by_main: Mapping[str, Mapping[str, int]],
+    config: GroupCountModelConfig = MODEL_CONFIG,
+) -> dict[str, object]:
+    """從有效期主力證據產生 ABC 三組預測配額，最低總額補至設定下限。"""
+    quota_groups = [group for group, _quota in config.main_base_quotas]
+    groups = [group for group in quota_groups if group in MAIN_CANDIDATE_GROUPS]
+    scores = {group: 0.0 for group in groups}
+    for group, prize_count in main_evidence:
+        if group in scores:
+            scores[group] += max(0.0, prize_count)
+    main_group = max(groups, key=lambda group: (scores[group], -groups.index(group)))
+
+    # 只在 ABC 內選三組預測；使用各組窗口球數分位估計，並限制在使用者給定範圍。
+    quota_ranges = {group: (low, high) for group, low, high in config.group_quota_ranges}
+    selected_groups = [group for group in ("A", "B", "C") if group in quota_ranges]
+    group_scores = {
+        group: max(0.0, float(leg_evidence.get(main_group, {}).get(group, 0.0)))
+        for group in selected_groups
+    }
+    # 主力由注數加權證據決定；另外兩組按高注數期的配腳證據排序。
+    support_groups = sorted(
+        (group for group in selected_groups if group != main_group),
+        key=lambda group: (-group_scores[group], selected_groups.index(group)),
+    )
+    combination_groups = [main_group, *support_groups]
+    base_quotas = dict(config.main_base_quotas)
+    main_leg_max = observed_leg_max_by_main.get(main_group, {})
+    quotas: dict[str, int] = {}
+    for group in combination_groups:
+        low, high = quota_ranges[group]
+        if group == main_group:
+            suggested = base_quotas[group] + config.main_uplift_balls
+            quotas[group] = max(low, min(high, suggested))
+        else:
+            observed_max = int(main_leg_max.get(group, 0))
+            quotas[group] = max(low, min(high, observed_max or low))
+
+    # 總額低於 8 時，依窗口期常見配額上限逐球補足；優先補主力，其後按 ABC 強弱排序。
+    target_total = max(config.combination_min_total, sum(quotas.values()))
+    add_priority = [main_group, *sorted(
+        (group for group in combination_groups if group != main_group),
+        key=lambda group: (-group_scores[group], selected_groups.index(group)),
+    )]
+    while sum(quotas.values()) < target_total:
+        raised = False
+        for group in add_priority:
+            _low, high = quota_ranges[group]
+            if quotas[group] < high:
+                quotas[group] += 1
+                raised = True
+                if sum(quotas.values()) >= target_total:
+                    break
+        if not raised:
+            break
+
+    main_quota = quotas[main_group]
+    leg_quotas = {group: quotas[group] for group in combination_groups if group != main_group}
+    leg_total = sum(leg_quotas.values())
+    return {
+        "main_group": main_group,
+        "main_quota": main_quota,
+        "support_groups": list(leg_quotas),
+        "support_quotas": leg_quotas,
+        "support_total": leg_total,
+        "total": main_quota + leg_total,
+        "combination_quotas": quotas,
+        "evidence_scores": scores,
     }
 

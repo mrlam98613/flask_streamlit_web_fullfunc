@@ -50,7 +50,7 @@ BACKTEST_HFB_CSV = BACKTEST_DIR / "s4_v1_HFB_count.csv"
 BACKTEST_HFL_CSV = BACKTEST_DIR / "s4_v1_HFL_count.csv"
 BACKTEST_HFB_HFL_CSV = BACKTEST_DIR / "s4_v1_HFB_HFL_count.csv"
 # ----
-LAST_PRIZE3_ANALYSIS: dict[str, object] = {}
+LAST_MAIN_LEG_ANALYSIS: dict[str, object] = {}
 LAST_HFB_HFL: dict[str, list[int]] = {"HFB": [], "HFL": []}
 BACKTEST_POOL_SIZES: list[int] = []
 BACKTEST_HIT_COUNTS: list[float] = []
@@ -72,9 +72,9 @@ BACKTEST_HFB_HFL_HIT_COUNTS: list[float] = []
 # S4_v1 3_獎最人氣球號預測
 VERSION = "S4_v1 3_獎最人氣球號預測 "
 
-MODE = "backtest" # backtest / predict mode input
+MODE = "predict" # backtest / predict mode input
 BACKTEST_DRAW_COUNT_LIST = [1]
-WINDOW_DRAW_COUNT_LIST = [19] # 最少查詢 7 期
+WINDOW_DRAW_COUNT_LIST = [8] # 最少查詢 7 期
 SELECT_GROUPS = 1,2,3,4 # Select 1,2,3,4 
 COMB_MATCH_MODE = ">="
 COMBINATION_TAKE_COUNT = 5
@@ -103,7 +103,7 @@ SORT_GROUPS_BY_COUNT = True
 # --------------------
 PRINT_BACKTEST_MODE = "detail"
 PRIZE_OPTION = 3
-PRIZE_PRINT_SHOW = False
+PRIZE_PRINT_SHOW = True
 
 
 GROUPS = {
@@ -585,47 +585,64 @@ def print_group_priority_table(
     target_index: int,
 ) -> None:
     """以每期主力組和副組列出 ABCD 分組走勢。"""
+    payout_by_date = {
+        row.get("nDdate", ""): (
+            to_float(row.get("prize3")) * to_float(row.get("prize3_unit"))
+        )
+        for row in read_csv_rows(M6_CSV)
+        if row.get("nDdate")
+    }
     print()
     print("----- ABCD 主力組 / 副組分組走勢 -----")
-    print("ID   | 日期       | 中獎注 | 球數 | 主力 | 副組")
+    print("ID   | 日期       | 3獎中獎注 | 3獎派彩總額 | 球數 | 主力 | 副組")
     # 日期由遠到近排列；ID 仍以最近一期為 01 期。
     for row_index, row in window_rows:
         counts = {
             group_id: group_ball_count(row, group_id)
             for group_id in selected_group_ids()
         }
+        main_candidates = [
+            group_id for group_id in counts if GROUP_CODES[group_id] in ("A", "B", "C")
+        ]
         ranked_groups = sorted(
-            counts,
-            key=lambda group_id: (-counts[group_id], selected_group_ids().index(group_id)),
+            main_candidates,
+            key=lambda group_id: (-counts[group_id], main_candidates.index(group_id)),
         )
         if not ranked_groups:
             continue
         main_group = ranked_groups[0]
+        sub_groups = sorted(
+            (group_id for group_id in counts if group_id != main_group),
+            key=lambda group_id: (-counts[group_id], selected_group_ids().index(group_id)),
+        )
         sub_text = ", ".join(
             f"{GROUP_CODES[group_id]}{counts[group_id]}"
-            for group_id in ranked_groups[1:]
-            if counts[group_id] > 0
+            for group_id in sub_groups if counts[group_id] > 0
         )
         display_id = target_index - row_index + 1
         print(
             f"{display_id:02d}期 | {row['date']:<10} | "
-            f"{int(to_float(row['prize_count'])):>6} | "
+            f"{int(to_float(row['prize_count'])):>8} | "
+            f"{payout_by_date.get(row['date'], 0.0):>12,.0f} | "
             f"{row_selected_ball_count(row):>4} | "
             f"{GROUP_CODES[main_group]}{counts[main_group]:<2} | {sub_text}"
         )
 
 
 def main_group_text(row: DrawRow) -> str:
-    """取得單期主力組及球數；同球數依 A/B/C/D 優先。"""
+    """取得單期主力組及球數；主力只從 A/B/C 選，同球數依 A/B/C 排序。"""
     counts = {
         group_id: group_ball_count(row, group_id)
         for group_id in selected_group_ids()
     }
-    if not counts:
+    main_candidates = [
+        group_id for group_id in counts if GROUP_CODES[group_id] in ("A", "B", "C")
+    ]
+    if not main_candidates:
         return ""
     main_group = min(
-        counts,
-        key=lambda group_id: (-counts[group_id], selected_group_ids().index(group_id)),
+        main_candidates,
+        key=lambda group_id: (-counts[group_id], main_candidates.index(group_id)),
     )
     return f"{GROUP_CODES[main_group]}{counts[main_group]}"
 
@@ -933,140 +950,96 @@ def print_backtest_window(
     property_data = print_abcd_property_analysis(window_rows, check_index - 1)
     update_hfb_hfl_candidates(property_data)
 
-    print_prize3_group_combination_analysis(window_rows, draws[check_index]["date"])
+    print_main_leg_group_analysis(window_rows, draws[check_index]["date"])
     print_check_draw_row(draws[check_index], display_backtest_index)
     save_backtest_hit(draws[check_index], draws[check_index]["date"])
     save_hfb_hfl_backtest_hit(draws[check_index], draws[check_index]["date"])
     print()
 
 
-def print_prize3_group_combination_analysis(
+def print_main_leg_group_analysis(
     sorted_rows: list[tuple[int, DrawRow]],
     pred_date: str = "",
 ) -> None:
-    """只保留每期 ABCD 合計至少 5 球的熱門組別組合。"""
-    qualifying_rows: list[list[str]] = []
-    merged_nums: list[int] = []
-    seen_nums: set[int] = set()
-    number_frequency: Counter[int] = Counter()
-    group_totals: dict[int, int] = {group_id: 0 for group_id in selected_group_ids()}
-    group_nums: dict[int, set[int]] = {group_id: set() for group_id in selected_group_ids()}
-    pair_counts: Counter[tuple[int, int]] = Counter()
-    pair_nums: dict[tuple[int, int], set[int]] = {}
+    """按窗口四組強度選一組主力及一組主配腳，分別建立號碼候選池。"""
+    global LAST_MAIN_LEG_ANALYSIS
+    if not sorted_rows:
+        LAST_MAIN_LEG_ANALYSIS = {}
+        return
 
+    # 以窗口實際球次 / 理論球次排序；斷期數用作同強度時的優先判斷。
+    denominator = len(sorted_rows) * 7
+    strength: dict[int, float] = {}
+    gap_counts: dict[int, int] = {}
+    for group_id in selected_group_ids():
+        _name, start_num, end_num = GROUPS[group_id]
+        expected = denominator * (end_num - start_num + 1) / 40
+        actual = sum(group_ball_count(row, group_id) for _index, row in sorted_rows)
+        gap_counts[group_id] = sum(
+            group_ball_count(row, group_id) == 0 for _index, row in sorted_rows
+        )
+        strength[group_id] = actual / expected if expected else 0.0
+    ranked_groups = sorted(
+        selected_group_ids(),
+        key=lambda gid: (
+            -strength[gid],
+            gap_counts[gid],
+            selected_group_ids().index(gid),
+        ),
+    )
+    main_group_ids = ranked_groups[:1]
+    support_group_ids = ranked_groups[1:2]
+    group_nums: dict[int, set[int]] = {gid: set() for gid in selected_group_ids()}
+
+    # 主力及主配腳各自只收集本組每期開出至少 2 球的號碼。
     for _row_index, row in sorted_rows:
-        row_parts: list[str] = []
-        row_nums: list[int] = []
-        row_group_data: list[tuple[int, int, list[int]]] = []
-        total_count = 0
-        for group_id in selected_group_ids():
+        for group_id in main_group_ids + support_group_ids:
+            count = group_ball_count(row, group_id)
+            if count < 2:
+                continue
             _name, start_num, end_num = GROUPS[group_id]
             nums = selected_nums(row, start_num, end_num)
             special = selected_special(row, start_num, end_num)
-            ball_count = len(nums) + (1 if special is not None else 0)
-            if ball_count == 0:
-                continue
-            # 單一組只有 1 球時暫不列入這段組合分析。
-            if ball_count < 2:
-                continue
-            total_count += ball_count
-            row_parts.append(f"{GROUP_CODES[group_id]}{format_nums(nums, special)}")
-            row_nums.extend(nums)
+            group_nums[group_id].update(nums)
             if special is not None:
-                row_nums.append(special)
-            group_values = nums + ([special] if special is not None else [])
-            row_group_data.append((group_id, ball_count, group_values))
-        for left_index, (left_id, left_count, left_values) in enumerate(row_group_data):
-            for right_id, right_count, right_values in row_group_data[left_index + 1:]:
-                if left_count + right_count < 5:
-                    continue
-                pair = (left_id, right_id)
-                pair_counts[pair] += 1
-                pair_nums.setdefault(pair, set()).update(left_values + right_values)
-        if total_count >= 5:
-            qualifying_rows.append(row_parts)
-            for group_id, ball_count, group_values in row_group_data:
-                group_totals[group_id] += ball_count
-                group_nums[group_id].update(group_values)
-            for num in row_nums:
-                if num not in seen_nums:
-                    seen_nums.add(num)
-                    merged_nums.append(num)
-                number_frequency[num] += 1
+                group_nums[group_id].add(special)
+
+    merged_banker_nums = set().union(
+        *(group_nums[group_id] for group_id in main_group_ids + support_group_ids)
+    )
+
+    def group_pool_text(group_ids: list[int]) -> str:
+        return "，".join(
+            f"{GROUP_CODES[gid]}{format_nums(sorted(group_nums[gid]))}"
+            for gid in group_ids if group_nums[gid]
+        )
+
+    def group_pool_count_text(group_ids: list[int]) -> str:
+        return ", ".join(
+            f"{GROUP_CODES[gid]}{len(group_nums[gid])}"
+            for gid in group_ids if group_nums[gid]
+        )
 
     print()
-    print("------- 3獎中獎最多注數，人氣熱門組別 主力號 組合分析 ---------")
-    if qualifying_rows:
-        ranked_pairs = sorted(
-            pair_counts,
-            key=lambda pair: (
-                -pair_counts[pair],
-                selected_group_ids().index(pair[0]),
-                selected_group_ids().index(pair[1]),
-            ),
-        )[:3]
-        main_group_ids = list(ranked_pairs[0]) if ranked_pairs else []
-        qualifying_group_ids = {
-            group_id
-            for pair in pair_counts
-            for group_id in pair
-        }
-        support_group_ids = [
-            group_id
-            for group_id in selected_group_ids()
-            if group_id in qualifying_group_ids and group_id not in main_group_ids
-        ]
+    print("---- ABCD 分組球數走勢分析 / 主力組 + 主配腳組球號 ----")
+    print(f"主力組別  {group_pool_text(main_group_ids)} /> {group_pool_count_text(main_group_ids)}")
+    print(f"配腳組別  {group_pool_text(support_group_ids)} /> {group_pool_count_text(support_group_ids)}")
+    print("-----------------------------------------------")
+    rbg_groups = res_List_To_rbg_Dict_func(sorted(merged_banker_nums))
+    for color_code, color_index in (("R", 0), ("B", 1), ("G", 2)):
+        color_nums = rbg_groups.get(color_index, [])
+        print(f"{color_code}：{format_nums(color_nums)} /> {len(color_nums)} 球")
 
-        def group_pool_text(group_ids: list[int]) -> str:
-            return "，".join(
-                f"{GROUP_CODES[group_id]}{format_nums(sorted(group_nums[group_id]))}"
-                for group_id in group_ids
-                if group_nums[group_id]
-            )
-
-        def group_pool_count_text(group_ids: list[int]) -> str:
-            return ", ".join(
-                f"{GROUP_CODES[group_id]}{len(group_nums[group_id])}"
-                for group_id in group_ids
-                if group_nums[group_id]
-            )
-
-        print(
-            f"主力組別  {group_pool_text(main_group_ids)} /> "
-            f"{group_pool_count_text(main_group_ids)}"
+    LAST_MAIN_LEG_ANALYSIS = {
+        "main_group_ids": main_group_ids,
+        "support_group_ids": support_group_ids,
+        "group_nums": group_nums,
+        "rbg_groups": rbg_groups,
+    }
+    if pred_date:
+        save_main_leg_analysis_csv(
+            pred_date, main_group_ids, support_group_ids, group_nums, rbg_groups
         )
-        print(
-            f"配腳組別  {group_pool_text(support_group_ids)} /> "
-            f"{group_pool_count_text(support_group_ids)}"
-        )
-        print()
-        print()
-
-        merged_banker_nums: set[int] = set()
-        for group_id in main_group_ids + support_group_ids:
-            merged_banker_nums.update(group_nums[group_id])
-        rbg_groups = res_List_To_rbg_Dict_func(sorted(merged_banker_nums))
-        for color_code, color_index in (("R", 0), ("B", 1), ("G", 2)):
-            color_nums = rbg_groups.get(color_index, [])
-            print(f"{color_code}：{format_nums(color_nums)} /> {len(color_nums)} 球")
-        global LAST_PRIZE3_ANALYSIS
-        LAST_PRIZE3_ANALYSIS = {
-            "main_group_ids": main_group_ids,
-            "support_group_ids": support_group_ids,
-            "group_nums": group_nums,
-            "rbg_groups": rbg_groups,
-        }
-        if pred_date:
-            save_prize3_analysis_csv(
-            pred_date,
-            main_group_ids,
-            support_group_ids,
-            group_nums,
-            rbg_groups,
-            )
-
-    else:
-        print("沒有符合合計 >= 5 球的組合。")
     print()
 
 
@@ -1092,10 +1065,10 @@ def print_predict_window(draws: list[DrawRow], window_count: int, next_draw_date
     print_main_group_analysis(group_totals, len(window_rows), next_draw_date)
     property_data = print_abcd_property_analysis(window_rows, latest_index)
     update_hfb_hfl_candidates(property_data)
-    # 預測模式也使用與回測相同的 3 獎熱門組別分析，並顯示主力／配腳及 RBG 組合。
-    print_prize3_group_combination_analysis(window_rows, next_draw_date)
-    analysis = LAST_PRIZE3_ANALYSIS
-    save_prize3_analysis_csv(
+    # 預測模式按窗口組別強弱分析主力／配腳及 RBG 組合。
+    print_main_leg_group_analysis(window_rows, next_draw_date)
+    analysis = LAST_MAIN_LEG_ANALYSIS
+    save_main_leg_analysis_csv(
         next_draw_date or "unknown",
         cast(list[int], analysis.get("main_group_ids", [])),
         cast(list[int], analysis.get("support_group_ids", [])),
@@ -1108,7 +1081,7 @@ def print_predict_window(draws: list[DrawRow], window_count: int, next_draw_date
     print()
 
 
-def save_prize3_analysis_csv(
+def save_main_leg_analysis_csv(
     pred_date: str,
     main_group_ids: list[int],
     support_group_ids: list[int],
@@ -1120,9 +1093,9 @@ def save_prize3_analysis_csv(
     banker_row = {
         "pred_date": pred_date,
         "banker1": group_text(main_group_ids[0]) if len(main_group_ids) > 0 else "",
-        "banker2": group_text(main_group_ids[1]) if len(main_group_ids) > 1 else "",
         "leg1": group_text(support_group_ids[0]) if len(support_group_ids) > 0 else "",
         "leg2": group_text(support_group_ids[1]) if len(support_group_ids) > 1 else "",
+        "leg3": group_text(support_group_ids[2]) if len(support_group_ids) > 2 else "",
     }
     rbg_row = {
         "pred_date": pred_date,
@@ -1210,7 +1183,7 @@ def reset_predict_csvs() -> None:
 
 
 def save_backtest_hit(draw: DrawRow, pred_date: str) -> None:
-    analysis = LAST_PRIZE3_ANALYSIS
+    analysis = LAST_MAIN_LEG_ANALYSIS
     if not analysis:
         return
     actual_nums = set(draw["nums"])
@@ -1276,9 +1249,10 @@ def save_backtest_hit(draw: DrawRow, pred_date: str) -> None:
     banker_row = {
         "pred_date": pred_date,
         "banker1": f"{GROUP_CODES[main_ids[0]]}{format_nums(sorted(group_nums[main_ids[0]]))}" if len(main_ids) > 0 else "",
-        "banker2": f"{GROUP_CODES[main_ids[1]]}{format_nums(sorted(group_nums[main_ids[1]]))}" if len(main_ids) > 1 else "",
+        "banker2": "",
         "leg1": f"{GROUP_CODES[support_ids[0]]}{format_nums(sorted(group_nums[support_ids[0]]))}" if len(support_ids) > 0 else "",
         "leg2": f"{GROUP_CODES[support_ids[1]]}{format_nums(sorted(group_nums[support_ids[1]]))}" if len(support_ids) > 1 else "",
+        "leg3": f"{GROUP_CODES[support_ids[2]]}{format_nums(sorted(group_nums[support_ids[2]]))}" if len(support_ids) > 2 else "",
         "hit_num_list": ", ".join(hit_parts),
         "hit_count": format_ball_count(hit_count),
     }

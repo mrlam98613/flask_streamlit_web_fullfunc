@@ -1,2 +1,2 @@
-﻿pred_date,banker1,banker2,leg1,leg2,hit_num_list,hit_count
-2026-10-22,,,"B[10,11,12,14,19,20]","D[32,33,34,35,36,37,38]","A[*5,4], B[11,12], D[38]",4.5
+﻿pred_date,banker1,banker2,leg1,leg2,leg3,hit_num_list,hit_count
+2026-10-27,,,"C[21,24,25,26,27,28,29,30,31]",,,"A[2,4], C[*31,21,24]",4.5

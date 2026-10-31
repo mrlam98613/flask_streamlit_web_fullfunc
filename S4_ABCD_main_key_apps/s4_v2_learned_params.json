@@ -1,0 +1,11 @@
+{
+  "prize3_weight_power": 0.5,
+  "prize3_payout_weight_power": 0.0,
+  "group_strength_weight_power": 0.5,
+  "recency_decay": 0.95,
+  "train_weighted_score": 0.64684,
+  "validation_weighted_score": 0.66038,
+  "training_draw_count": 160,
+  "validation_draw_count": 40,
+  "window_size": 19
+}
