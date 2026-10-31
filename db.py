@@ -28,9 +28,9 @@ def is_valid_email(email: str) -> bool:
 
 
 def is_valid_local_phone(phone: str) -> bool:
-    """檢查本地電話號碼：只接受 8 位數字，不輸入地區號。"""
+    """檢查電話號碼：只接受 8 至 12 位數字，不輸入地區號。"""
 
-    return bool(re.fullmatch(r"\d{8}", (phone or "").strip()))
+    return bool(re.fullmatch(r"\d{8,12}", (phone or "").strip()))
 
 
 def _connect_member_db():
@@ -60,24 +60,30 @@ def init_db():
             }
             if "created_at" not in columns:
                 conn.execute("ALTER TABLE members ADD COLUMN created_at TEXT")
+            if "nickname" not in columns:
+                conn.execute("ALTER TABLE members ADD COLUMN nickname TEXT NOT NULL DEFAULT ''")
 
 
-def add_member(email, phone, password, is_admin=0):
+def add_member(email, phone, password, is_admin=0, nickname=""):
     with closing(_connect_member_db()) as conn:
         with conn:
             conn.execute(
                 """
-                INSERT INTO members (email, phone, password, is_admin)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO members (email, phone, password, is_admin, nickname)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (email.strip().lower(), phone.strip(), password, int(is_admin)),
+                (email.strip().lower(), phone.strip(), password, int(is_admin), nickname.strip()),
             )
 
 
 def get_member(email):
     with closing(_connect_member_db()) as conn:
         cur = conn.cursor()
-        cur.execute("SELECT * FROM members WHERE email = ?", ((email or "").strip().lower(),))
+        identifier = (email or "").strip()
+        cur.execute(
+            "SELECT * FROM members WHERE phone = ? OR email = ? LIMIT 1",
+            (identifier, identifier.lower()),
+        )
         return cur.fetchone()
 
 
@@ -91,7 +97,9 @@ def get_member_by_id(member_id: int):
 def get_all_members():
     with closing(_connect_member_db()) as conn:
         cur = conn.cursor()
-        cur.execute("SELECT id, email, phone, is_admin, created_at FROM members ORDER BY id")
+        cur.execute(
+            "SELECT id, email, phone, is_admin, created_at, nickname FROM members ORDER BY id"
+        )
         return cur.fetchall()
 
 
@@ -101,12 +109,12 @@ def delete_member(member_id):
             conn.execute("DELETE FROM members WHERE id = ?", (member_id,))
 
 
-def update_member(member_id, new_email, new_phone):
+def update_member(member_id, new_nickname, new_phone):
     with closing(_connect_member_db()) as conn:
         with conn:
             conn.execute(
-                "UPDATE members SET email = ?, phone = ? WHERE id = ?",
-                (new_email.strip().lower(), new_phone.strip(), member_id),
+                "UPDATE members SET email = ?, phone = ?, nickname = ? WHERE id = ?",
+                (new_phone.strip(), new_phone.strip(), new_nickname.strip(), member_id),
             )
 
 
@@ -121,12 +129,29 @@ def reset_password(email, phone, new_password):
             return cur.rowcount > 0
 
 
+def set_member_password(member_id: int, new_password: str):
+    with closing(_connect_member_db()) as conn:
+        with conn:
+            conn.execute(
+                "UPDATE members SET password = ? WHERE id = ?",
+                (new_password, member_id),
+            )
+
+
 def ensure_first_admin(email: str, phone: str, password: str):
-    """如果系統還沒有指定 admin，就建立第一個管理員帳號。"""
+    """確保指定管理員使用電話號碼作帳號及密碼。"""
 
     init_db()
-    if not get_member(email):
-        add_member(email, phone, hash_password(password), 1)
+    member = get_member(phone)
+    if member:
+        with closing(_connect_member_db()) as conn:
+            with conn:
+                conn.execute(
+                    "UPDATE members SET email = ?, password = ?, is_admin = 1, nickname = ? WHERE id = ?",
+                    (phone, hash_password(password), "管理員", member[0]),
+                )
+    else:
+        add_member(phone, phone, hash_password(password), 1, "管理員")
 
 
 def _safe_email_db_name(email: str) -> str:

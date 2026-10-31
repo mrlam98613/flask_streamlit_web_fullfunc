@@ -21,7 +21,6 @@ from db import (  # noqa: E402
     delete_member_bet,
     get_all_members,
     init_member_bet_db,
-    is_valid_email,
     is_valid_local_phone,
     list_member_bets,
     member_bet_exists,
@@ -696,37 +695,37 @@ def render_admin_member_data_tab() -> None:
         st.info("目前沒有會員資料。")
         return
 
-    for member_id, email, phone, is_admin, created_at in members:
+    for member_id, phone_id, phone, is_admin, created_at, nickname in members:
         with st.container(border=True):
             cols = st.columns([2.5, 1.3, 1.1, 0.8, 0.8])
-            cols[0].markdown(f"**{email}**")
+            cols[0].markdown(f"**{nickname or phone_id}**")
             cols[1].write(phone)
             cols[2].write("管理員" if is_admin else "普通會員")
             cols[3].caption(created_at or "-")
 
-            if email == current_admin_email:
+            if phone_id == current_admin_email:
                 cols[4].caption("目前帳號")
             elif cols[4].button("刪除", key=f"admin_delete_member_{member_id}"):
                 delete_member(member_id)
                 st.warning("已刪除會員資料。")
                 st.rerun()
 
-            if email != current_admin_email and st.button("修改", key=f"admin_edit_member_{member_id}"):
+            if phone_id != current_admin_email and st.button("修改", key=f"admin_edit_member_{member_id}"):
                 st.session_state[f"admin_editing_member_{member_id}"] = True
 
             if st.session_state.get(f"admin_editing_member_{member_id}"):
-                new_email = st.text_input("新信箱", value=email, key=f"admin_email_{member_id}")
+                new_nickname = st.text_input("新暱稱（最多 20 字）", value=nickname, max_chars=20, key=f"admin_nickname_{member_id}")
                 new_phone = st.text_input("新手機號碼", value=phone, key=f"admin_phone_{member_id}")
                 save_cols = st.columns(2)
                 if save_cols[0].button("確認修改", key=f"admin_save_member_{member_id}"):
-                    new_email = str(new_email or "").strip().lower()
+                    new_nickname = str(new_nickname or "").strip()
                     new_phone = str(new_phone or "").strip()
-                    if not is_valid_email(new_email):
-                        st.error("Email 格式不正確。")
+                    if not new_nickname or len(new_nickname) > 20:
+                        st.error("暱稱必須輸入，且不可超過 20 字。")
                     elif not is_valid_local_phone(new_phone):
-                        st.error("手機號碼請輸入 8 位數字，不需要地區號。")
+                        st.error("電話號碼請輸入 8 至 12 位數字，不需要地區號。")
                     else:
-                        update_member(member_id, new_email, new_phone)
+                        update_member(member_id, new_nickname, new_phone)
                         st.success("會員資料已更新。")
                         st.session_state.pop(f"admin_editing_member_{member_id}", None)
                         st.rerun()
@@ -740,7 +739,7 @@ def render_admin_member_bets_tab() -> None:
 
     st.subheader("E. 管理員會員投注紀錄")
     members = get_all_members()
-    member_emails = [email for _, email, _, _, _ in members]
+    member_emails = [phone_id for _, phone_id, _, _, _, _ in members]
 
     if not member_emails:
         st.info("目前沒有會員資料。")

@@ -1,4 +1,5 @@
 from pathlib import Path
+from html import escape
 import runpy
 
 import streamlit as st
@@ -100,10 +101,10 @@ def apply_styles() -> None:
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            font-size: 12px;
+            font-size: 17px;
             font-weight: 700;
             color: #111827;
-            line-height: 1.15;
+            line-height: 1.4;
         }
         .member-role {
             display: inline-block;
@@ -112,7 +113,7 @@ def apply_styles() -> None:
             border-radius: 999px;
             background: #eef6ff;
             color: #1d4ed8;
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 700;
         }
         .member-muted {
@@ -228,23 +229,26 @@ def reset_member_custom_bet_state() -> None:
 
 
 def render_member_status() -> None:
-    """顯示會員 email 和登出。"""
+    """顯示會員電話、暱稱和登出。"""
 
-    email = st.session_state.get("login_email_val")
+    phone = st.session_state.get("login_email_val")
+    nickname = st.session_state.get("login_nickname")
     login_state = st.session_state.get("login_state")
 
     with st.container(border=True):
         st.markdown('<span class="member-card-marker"></span>', unsafe_allow_html=True)
-        if email:
+        if phone:
             role = "管理員" if login_state == "admin" else "會員"
             st.markdown(
-                f'<div class="member-text">{email}<span class="member-role">{role}</span></div>',
+                f'<div class="member-text">{escape(str(phone))}　{escape(str(nickname or ""))}'
+                f'<span class="member-role">{role}</span></div>',
                 unsafe_allow_html=True,
             )
             if st.button("登出", key="custom_nav_logout", use_container_width=True):
                 reset_member_custom_bet_state()
                 st.session_state["login_state"] = None
                 st.session_state["login_email_val"] = None
+                st.session_state["login_nickname"] = None
                 st.session_state["login_member_id"] = None
                 st.session_state["current_page"] = "predict"
                 st.rerun()
