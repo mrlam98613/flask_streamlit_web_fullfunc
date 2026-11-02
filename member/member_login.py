@@ -122,14 +122,14 @@ def render_login_tab() -> None:
         st.success(notice)
 
     phone = st.text_input("電話號碼", key="login_phone")
-    password = st.number_input(
-        "密碼（電話號碼最後 4 位數字）",
+    last_four_number = st.number_input(
+        "電話末四位驗證數字",
         min_value=0,
         max_value=9999,
         value=None,
         step=1,
         format="%04d",
-        key="member_login_password_number",
+        key="login_last_four_number",
     )
 
     if st.button("登入", key="login_btn", type="primary"):
@@ -138,11 +138,11 @@ def render_login_tab() -> None:
         if not is_valid_local_phone(phone):
             st.error("電話號碼請輸入 8 至 12 位數字。")
             return
-        if password is None:
+        if last_four_number is None:
             st.error("請輸入電話號碼最後 4 位數字。")
             return
 
-        password_text = f"{int(password):04d}"
+        password_text = f"{int(last_four_number):04d}"
 
         member = get_member(phone)
         if member and password_text == phone[-4:] and member[3] == hash_password(password_text):
