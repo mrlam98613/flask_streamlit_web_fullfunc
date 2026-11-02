@@ -116,34 +116,36 @@ def render_admin_member_manager() -> None:
 
 def render_login_tab() -> None:
     st.header("會員登入")
-    st.markdown(
-        """
-        <style>
-        input[aria-label="登入密碼"] {
-            autocomplete: current-password;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
 
     notice = st.session_state.pop("member_login_notice", None)
     if notice:
         st.success(notice)
 
     phone = st.text_input("電話號碼", key="login_phone")
-    password = st.text_input("密碼（電話號碼最後 4 位數字）", type="password", key="member_login_password")
+    password = st.number_input(
+        "密碼（電話號碼最後 4 位數字）",
+        min_value=0,
+        max_value=9999,
+        value=None,
+        step=1,
+        format="%04d",
+        key="member_login_password_number",
+    )
 
     if st.button("登入", key="login_btn", type="primary"):
         phone = str(phone or "").strip()
-        password = str(password or "")
 
         if not is_valid_local_phone(phone):
             st.error("電話號碼請輸入 8 至 12 位數字。")
             return
+        if password is None:
+            st.error("請輸入電話號碼最後 4 位數字。")
+            return
+
+        password_text = f"{int(password):04d}"
 
         member = get_member(phone)
-        if member and password == phone[-4:] and member[3] == hash_password(password):
+        if member and password_text == phone[-4:] and member[3] == hash_password(password_text):
             set_logged_in(member)
             st.success(f"登入成功，{member[6] or phone}")
             switch_to_bet_center()
@@ -157,6 +159,7 @@ def render_login_tab() -> None:
 def render_register_tab() -> None:
     st.header("會員註冊")
 
+    st.caption("會員密碼由系統自動設定為電話號碼最後 4 位數字。")
     reg_phone = st.text_input("電話號碼（8 至 12 位數字，不用地區號）", key="reg_phone")
     reg_nickname = st.text_input("暱稱（必填，最多 20 字）", max_chars=20, key="reg_nickname")
 
@@ -185,17 +188,24 @@ def render_forgot_password_tab() -> None:
     st.header("忘記登入號碼")
 
     forgot_phone = st.text_input("電話號碼", key="forgot_phone")
-    last_four = st.text_input("電話號碼最後 4 位數字", max_chars=4, key="forgot_last_four")
+    last_four = st.number_input(
+        "電話號碼最後 4 位數字",
+        min_value=0,
+        max_value=9999,
+        value=None,
+        step=1,
+        format="%04d",
+        key="forgot_last_four_number",
+    )
 
     if st.button("檢證並登入", key="forgot_btn", type="primary"):
         forgot_phone = str(forgot_phone or "").strip()
-        last_four = str(last_four or "").strip()
 
         if not is_valid_local_phone(forgot_phone):
             st.warning("電話號碼請輸入 8 至 12 位數字。")
-        elif not last_four.isdigit() or len(last_four) != 4:
+        elif last_four is None:
             st.warning("請輸入電話號碼最後 4 位數字。")
-        elif last_four != forgot_phone[-4:]:
+        elif f"{int(last_four):04d}" != forgot_phone[-4:]:
             st.error("電話號碼或末四位數字不正確。")
         else:
             member = get_member(forgot_phone)
