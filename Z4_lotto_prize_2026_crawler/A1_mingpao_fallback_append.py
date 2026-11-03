@@ -22,7 +22,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import pandas as pd
 import requests
@@ -33,7 +33,6 @@ PROJECT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = PROJECT_DIR.parent
 DATA_DIR = PROJECT_DIR / "Lotto_Data_Folder"
 WEBAPP_DATA_DIR = REPO_ROOT / "A_msk_lottery_data_folder"
-LOG_PATH = PROJECT_DIR / "log" / "lotto_download_log.txt"
 
 MINGPAO_URL = "https://news.mingpao.com/pns/%E5%85%AD%E5%90%88%E5%BD%A9/marksix"
 
@@ -116,12 +115,6 @@ def now_string() -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
 
-def write_log(message: str) -> None:
-    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with LOG_PATH.open("w", encoding="utf-8") as f:
-        f.write(message.rstrip() + "\n\n")
-
-
 def clean_text(value: str) -> str:
     return re.sub(r"\s+", " ", value.replace("\xa0", " ")).strip()
 
@@ -146,7 +139,7 @@ def clean_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
-def parse_date_text(value: str) -> str | None:
+def parse_date_text(value: str) -> Optional[str]:
     text = clean_text(value)
     patterns = [
         r"(\d{4})[年/-](\d{1,2})[月/-](\d{1,2})日?",
@@ -312,7 +305,7 @@ def append_unique_row(path: Path, row: dict[str, Any], columns: list[str], date_
             if col not in df.columns:
                 df[col] = ""
         df = pd.concat([df[columns], pd.DataFrame([row], columns=columns)], ignore_index=True)
-        df[date_column] = df[date_column].astype(str).str.strip()
+        df[date_column] = df[date_column].map(lambda value: str(value).strip())
         df = df.drop_duplicates(subset=[date_column], keep="last")
         df = df.sort_values(date_column).reset_index(drop=True)
     else:
@@ -416,7 +409,6 @@ def run(apply: bool = False) -> bool:
                 f"/> 本地最新：{current_latest}"
             )
             print(message)
-            write_log(message)
             return False
         if apply:
             apply_append(draw)
@@ -433,12 +425,10 @@ def run(apply: bool = False) -> bool:
             f"/> 估計頭獎基金：{draw.next_prize_fund}"
         )
         print(message)
-        write_log(message)
         return apply
     except Exception as exc:
         message = f"{now_string()} 明報後備失敗：{exc}"
         print(message)
-        write_log(message)
         return False
 
 
