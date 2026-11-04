@@ -9,11 +9,18 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 
 
 PAGES = {
-    "predict": {
+    # "predict": {
+    #     "label": "下期預測",
+    #     "icon": "🏆",
+    #     "path": PROJECT_ROOT / "pages" / "0_predict_nextdraw.py",
+    #     "login_required": False,
+    # },
+    "abcd_predict": {
         "label": "下期預測",
-        "icon": "🏆",
-        "path": PROJECT_ROOT / "pages" / "0_predict_nextdraw.py",
+        "icon": "🎯",
+        "path": PROJECT_ROOT / "pages" / "0_ABCD_nextDraw.py",
         "login_required": False,
+        # S5_smart_bet_streategy/ s5_v3_comb_pred_main.py
     },
     "results": {
         "label": "開獎紀錄",
@@ -54,7 +61,12 @@ def init_state() -> None:
     st.session_state.setdefault("login_state", None)
     st.session_state.setdefault("login_email_val", None)
     st.session_state.setdefault("login_member_id", None)
-    st.session_state.setdefault("current_page", "predict")
+    # 舊版下期預測頁已暫停；將舊 session 的 predict 導向現行 ABCD 頁。
+    current_page = st.session_state.get("current_page")
+    if current_page not in PAGES and current_page != "calculator":
+        st.session_state["current_page"] = "abcd_predict"
+    else:
+        st.session_state.setdefault("current_page", "abcd_predict")
     st.session_state.setdefault("calculator_page", "multiple")
 
 
@@ -250,7 +262,7 @@ def render_member_status() -> None:
                 st.session_state["login_email_val"] = None
                 st.session_state["login_nickname"] = None
                 st.session_state["login_member_id"] = None
-                st.session_state["current_page"] = "predict"
+                st.session_state["current_page"] = "abcd_predict"
                 st.rerun()
         else:
             st.markdown('<span class="member-muted">尚未登入會員</span>', unsafe_allow_html=True)
@@ -259,7 +271,7 @@ def render_member_status() -> None:
 def render_top_nav() -> None:
     """顯示自製頂部導航列。"""
 
-    current_page = st.session_state.get("current_page", "predict")
+    current_page = st.session_state.get("current_page", "abcd_predict")
     render_member_status()
 
     nav_cols = st.columns(len(PAGES))
@@ -323,7 +335,7 @@ def main() -> None:
     apply_styles()
     render_top_nav()
 
-    current_page = st.session_state.get("current_page", "predict")
+    current_page = st.session_state.get("current_page", "abcd_predict")
     if current_page == "calculator":
         render_calculator_subnav()
         calc_key = st.session_state.get("calculator_page", "multiple")

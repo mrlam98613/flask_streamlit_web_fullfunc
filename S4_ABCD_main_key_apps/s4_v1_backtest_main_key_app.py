@@ -72,7 +72,7 @@ BACKTEST_HFB_HFL_HIT_COUNTS: list[float] = []
 # S4_v1 3_獎最人氣球號預測
 VERSION = "S4_v1 3_獎最人氣球號預測 "
 
-MODE = "predict" # backtest / predict mode input
+MODE = "backtest" # backtest / predict mode input
 BACKTEST_DRAW_COUNT_LIST = [1]
 WINDOW_DRAW_COUNT_LIST = [8] # 最少查詢 7 期
 SELECT_GROUPS = 1,2,3,4 # Select 1,2,3,4 

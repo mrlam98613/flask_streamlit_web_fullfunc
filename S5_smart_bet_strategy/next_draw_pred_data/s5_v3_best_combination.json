@@ -1,0 +1,103 @@
+{
+  "version": "S5_v3，動態候選球池組合驗證",
+  "backtest_periods": 50,
+  "window_periods": 19,
+  "best": {
+    "rank": 1,
+    "pool": "A+C",
+    "hit_rate": 3.6269430051813467,
+    "hit_3_plus": 7,
+    "total_bets": 193,
+    "max_hit": 4.5
+  },
+  "ranking": [
+    {
+      "rank": 1,
+      "pool": "A+C",
+      "hit_rate": 3.6269430051813467,
+      "hit_3_plus": 7,
+      "total_bets": 193,
+      "max_hit": 4.5
+    },
+    {
+      "rank": 2,
+      "pool": "C+D",
+      "hit_rate": 3.1413612565445024,
+      "hit_3_plus": 6,
+      "total_bets": 191,
+      "max_hit": 3.5
+    },
+    {
+      "rank": 3,
+      "pool": "A+D",
+      "hit_rate": 2.666666666666667,
+      "hit_3_plus": 4,
+      "total_bets": 150,
+      "max_hit": 3.0
+    },
+    {
+      "rank": 4,
+      "pool": "A+B",
+      "hit_rate": 2.127659574468085,
+      "hit_3_plus": 4,
+      "total_bets": 188,
+      "max_hit": 3.0
+    },
+    {
+      "rank": 5,
+      "pool": "B+C",
+      "hit_rate": 2.0100502512562812,
+      "hit_3_plus": 4,
+      "total_bets": 199,
+      "max_hit": 3.0
+    },
+    {
+      "rank": 6,
+      "pool": "A+C+D",
+      "hit_rate": 2.0,
+      "hit_3_plus": 5,
+      "total_bets": 250,
+      "max_hit": 4.0
+    },
+    {
+      "rank": 7,
+      "pool": "B+C+D",
+      "hit_rate": 1.9157088122605364,
+      "hit_3_plus": 5,
+      "total_bets": 261,
+      "max_hit": 3.5
+    },
+    {
+      "rank": 8,
+      "pool": "A+B+D",
+      "hit_rate": 1.6,
+      "hit_3_plus": 4,
+      "total_bets": 250,
+      "max_hit": 3.5
+    },
+    {
+      "rank": 9,
+      "pool": "A+B+C",
+      "hit_rate": 1.5151515151515151,
+      "hit_3_plus": 4,
+      "total_bets": 264,
+      "max_hit": 3.0
+    },
+    {
+      "rank": 10,
+      "pool": "A+B+C+D",
+      "hit_rate": 1.461988304093567,
+      "hit_3_plus": 5,
+      "total_bets": 342,
+      "max_hit": 4.0
+    },
+    {
+      "rank": 11,
+      "pool": "B+D",
+      "hit_rate": 1.0810810810810811,
+      "hit_3_plus": 2,
+      "total_bets": 185,
+      "max_hit": 3.0
+    }
+  ]
+}
