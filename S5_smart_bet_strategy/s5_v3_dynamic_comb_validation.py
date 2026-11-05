@@ -28,6 +28,14 @@ except ImportError:  # 允許直接用檔案路徑執行
 - 全部 11 個組合投注
 - 當期最高命中
 - 最後命中率排名
+-----------------
+回測期／窗口期
+ABCD 走勢
+主力／配腳
+候選球池
+11 組命中統計
+總結打印格式
+JSON 輸出內容
 
 '''
 
@@ -104,7 +112,7 @@ def validate(backtest_periods: int, window_periods: int, seed: int) -> dict[str,
                     totals[pool][hit] += 1
             print(f"  {pool:<7} {meta['pool_size']}球 / {len(bets)}注 / 最高{best:g}分")
 
-    print("=== 總結 ===")
+    print(f"=== S5 V3 - 回測期 = {count}，全部動態組合驗證 總結 ===")
     ranked = []
     for pool in POOL_NAMES:
         positive = [
@@ -117,18 +125,18 @@ def validate(backtest_periods: int, window_periods: int, seed: int) -> dict[str,
         ranked.append((hit_rate, total_3_plus, max_hits[pool], pool))
         print(f"{pool:<7} {', '.join(positive) if positive else '>'}")
 
-    print("=== 命中表現排序（3 球或以上注數） ===")
+    print(f"=== 回測期 = {count}，命中表現排序（3 球或以上注數） ===")
     ranking_rows = []
     for rank, (hit_rate, count_3_plus, best, pool) in enumerate(sorted(ranked, reverse=True), start=1):
         print(f"{rank:02d}. {pool:<7} 命中率={hit_rate:.2f}%（{count_3_plus}/{total_bets[pool]}注），單期最高={best:g}球")
-        ranking_rows.append({"rank": rank, "pool": pool, "hit_rate": hit_rate, "hit_3_plus": count_3_plus, "total_bets": total_bets[pool], "max_hit": best})
+        ranking_rows.append({"rank": rank, "pool": pool, "hit_rate": hit_rate, "hit_3_plus": count_3_plus, "total_bets": total_bets[pool], "max_hit": best, "distribution": {str(value): totals[pool][value] for value in SCORES if totals[pool][value] >= 1}})
     best = ranking_rows[0] if ranking_rows else {}
-    pred_dir = Path(__file__).resolve().parent / "next_draw_pred_data"
-    pred_dir.mkdir(parents=True, exist_ok=True)
-    with (pred_dir / "s5_v3_best_combination.json").open("w", encoding="utf-8") as handle:
+    json_dir = Path(__file__).resolve().parent / "S5_All_Recored" / "json_data"
+    json_dir.mkdir(parents=True, exist_ok=True)
+    with (json_dir / "s5_v3_best_combination.json").open("w", encoding="utf-8") as handle:
         payload = {"version": VERSION, "backtest_periods": count, "window_periods": window_periods, "best": best, "ranking": ranking_rows}
         json.dump(payload, handle, ensure_ascii=False, indent=2)
-    print(f"最佳組合已寫入：{pred_dir / 's5_v3_best_combination.json'}")
+    print(f"最佳組合已寫入：{json_dir / 's5_v3_best_combination.json'}")
     return payload
 
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 import csv
 import base64
 import re
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -14,6 +16,8 @@ import streamlit as st
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PREDICTION_DIR = PROJECT_ROOT / "S5_smart_bet_strategy" / "next_draw_pred_data"
 BALLS_DIR = PROJECT_ROOT / "A_msk_balls_png"
+M4_PATH = PROJECT_ROOT / "A_msk_lottery_data_folder" / "M4_lotto_prize_summary.csv"
+PREDICT_MAIN = PROJECT_ROOT / "S5_smart_bet_strategy" / "s5_v3_comb_pred_main.py"
 
 
 def find_prediction_files() -> list[Path]:
@@ -22,14 +26,61 @@ def find_prediction_files() -> list[Path]:
         return []
     return sorted(
         path for path in PREDICTION_DIR.glob("*.csv")
-        if path.name.startswith(("s5_v3_pred_", "s5_v3_nextdraw_pred"))
+        if path.name.startswith(("s5_v3_", "s5_v3_nextdraw_pred"))
     )
+
+
+def load_next_draw_date() -> str:
+    """讀取 M4 最新一列的下期開獎日期。"""
+    if not M4_PATH.exists():
+        return ""
+    with M4_PATH.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    return rows[-1].get("next_draw_date", "").strip() if rows else ""
+
+
+def prediction_exists_for_date(target_date: str, files: list[Path]) -> bool:
+    """檢查現有預測 CSV 是否已有指定下期日期。"""
+    if not target_date:
+        return False
+    for path in files:
+        try:
+            with path.open("r", encoding="utf-8-sig", newline="") as handle:
+                for row in csv.DictReader(handle):
+                    if (row.get("bet_date") or "").strip() == target_date:
+                        return True
+        except OSError:
+            continue
+    return False
+
+
+def ensure_latest_prediction() -> tuple[bool, str]:
+    """只在預測目錄沒有最新日期時執行 S5 v3 預測。"""
+    target_date = load_next_draw_date()
+    files = find_prediction_files()
+    if prediction_exists_for_date(target_date, files):
+        return False, target_date
+    if not PREDICT_MAIN.exists():
+        return False, target_date
+    try:
+        subprocess.run(
+            [sys.executable, str(PREDICT_MAIN), "--pool", "best"],
+            cwd=str(PROJECT_ROOT),
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        return True, target_date
+    except (OSError, subprocess.SubprocessError) as error:
+        st.warning(f"未能自動更新下期投注預測：{error}")
+        return False, target_date
 
 
 def pool_label(path: Path) -> str:
     """由檔名轉成顯示用的組合名稱，例如 A_C 變成 A+C。"""
     name = path.stem
-    match = re.search(r"(?:s5_v3_pred_|s5_v3_nextdraw_pred_?)(.+)$", name)
+    match = re.search(r"(?:s5_v3_pred_|s5_v3_nextdraw_pred_?|s5_v3_)([A-D]+)(?:_\d+_)?$", name)
     if not match:
         return name
     return match.group(1).replace("_", "+")
@@ -98,21 +149,31 @@ def render_page() -> None:
     )
     st.caption("讀取 S5 v3 產生的最新預測 CSV；檔名可按組合動態變化。")
 
+    updated, target_date = ensure_latest_prediction()
+    if updated:
+        st.success(f"已更新下期投注預測：{target_date}")
     files = find_prediction_files()
     if not files:
         st.warning("目前找不到預測 CSV，請先執行 S5 v3 預測程式。")
         return
 
-    options = {f"{pool_label(path)}（{path.name}）": path for path in files}
-    selected_label = st.selectbox("選擇投注組合", list(options))
-    selected_path = options[selected_label]
-    bet_date, rows = load_prediction(selected_path)
-
+    loaded = {path: load_prediction(path) for path in files}
+    bet_date = next((date for date, _rows in loaded.values() if date), "")
     st.markdown(f"**預測投注日期：** {format_date_with_weekday(bet_date)}")
-    st.markdown(f"**投注組合：** {pool_label(selected_path)}　**總注數：** {len(rows)} 注")
+    st.markdown("**選擇投注組合：**")
 
-    for index, (_date, numbers) in enumerate(rows, start=1):
-        render_ticket_balls(numbers, f"第 {index} 注：")
+    selected_paths = []
+    for path in files:
+        date, rows = loaded[path]
+        label = f"{pool_label(path)}，{len(rows)} 注"
+        if st.checkbox(label, key=f"abcd_pool_{path.name}"):
+            selected_paths.append(path)
+
+    for path in selected_paths:
+        _date, rows = loaded[path]
+        st.markdown(f"#### {pool_label(path)}：{len(rows)} 注")
+        for index, (_row_date, numbers) in enumerate(rows, start=1):
+            render_ticket_balls(numbers, f"第 {index} 注：")
 
 
 if __name__ == "__main__":

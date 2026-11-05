@@ -9,7 +9,7 @@ from pathlib import Path
 try:
     from .s5_v1_bet_combination import POOL_SPECS, generate_bets, hit_summary, load_draws
 except ImportError:  # 允許直接用檔案路徑執行
-    from s5_v1_bet_combination import POOL_SPECS, generate_bets, hit_summary, load_draws
+    from S5_smart_bet_strategy.old_apps.s5_v1_bet_combination import POOL_SPECS, generate_bets, hit_summary, load_draws
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BACKTEST_PERIODS = 10
