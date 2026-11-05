@@ -10,14 +10,14 @@ wheels/
 .venv
 
 # Local databases and user-generated data
-# *.db
-# *.sqlite
-# *.sqlite3
-# member/member_bet_dbs/
+*.db
+*.sqlite
+*.sqlite3
+member/member_bet_dbs/
 
 
 #不上傳至 github
-Dockerfile
+# Dockerfile
 crontab.txt
 # # Local lottery data snapshots
 Z4_lotto_prize_2026_crawler/log/*
