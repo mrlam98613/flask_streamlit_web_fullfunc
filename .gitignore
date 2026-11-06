@@ -18,7 +18,7 @@ member/member_bet_dbs/
 
 #不上傳至 github
 # Dockerfile
-crontab.txt
+# crontab.txt
 # # Local lottery data snapshots
 Z4_lotto_prize_2026_crawler/log/*
 Z4_lotto_prize_2026_crawler/Lotto_Data_Folder/*

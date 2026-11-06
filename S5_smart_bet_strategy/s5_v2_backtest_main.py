@@ -6,6 +6,24 @@ import csv
 from pathlib import Path
 from typing import cast
 
+'''
+03. 核對日 2026-11-05｜主力 A｜配腳 C,B,D
+ABCD 分組球數走勢：
+A組：-142211111-33242121 = 32 球次 / 29.925 = 106.9%
+B組：-2113-1--23121-3113 = 25 球次 / 36.575 = 68.4%
+C組：31212-233212-33-331 = 35 球次 / 36.575 = 95.7%
+D組：32---2-1213111-1--1 = 19 球次 / 29.925 = 63.5%
+候選球池：
+/> A[5,8,9,2,4,3,7,6]，
+/> B[19,11,18,20,10,12,14,17,13,16]，
+/> C[31,29,21,24,28,23,26,27,30,22,25]，
+/> D[34,40,33,35,36,37,38,32]
+A+B: 18球 / 3注 = 命中：沒有 3 球或以上
+A+B+C: 29球 / 5注 = 命中：沒有 3 球或以上
+A+B+C+D: 37球 / 7注 = 命中：沒有 3 球或以上
+'''
+
+
 try:
     from .s5_v2_abcd_predict import analyze_window, candidate_groups, read_draws
     from .s5_v2_config import BACKTEST_PERIODS, DATA_DIR, DATA_PATH, GROUPS, OUTPUT_POOLS, RANDOM_SEED, VERSION, WINDOW_PERIODS

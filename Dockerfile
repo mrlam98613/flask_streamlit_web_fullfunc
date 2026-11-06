@@ -47,8 +47,8 @@ RUN echo "/var/log/cron/*.log {\n\
 }" > /etc/logrotate.d/cron-logs
 
 # 複製並載入 crontab.txt
-COPY crontab.txt /tmp/crontab.txt
-RUN crontab /tmp/crontab.txt
+# COPY crontab.txt /tmp/crontab.txt
+# RUN crontab /tmp/crontab.txt
 
 
 # 預設開放 8501 (Streamlit) 及 8080 (Flask/Gunicorn)
