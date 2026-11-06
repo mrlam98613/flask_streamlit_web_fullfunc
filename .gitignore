@@ -10,17 +10,20 @@ wheels/
 .venv
 
 # Local databases and user-generated data
-# *.db
-# *.sqlite
-# *.sqlite3
-# member/member_bet_dbs/
+*.db
+*.sqlite
+*.sqlite3
+member/member_bet_dbs/
+S5_smart_bet_strategy/S5_All_Recored/
+S5_smart_bet_strategy/next_draw_pred_data/
 
 
-#不上傳至 github
-# Dockerfile
-# crontab.txt
-# # Local lottery data snapshots
-# Z4_lotto_prize_2026_crawler/log/*
-# Z4_lotto_prize_2026_crawler/Lotto_Data_Folder/*
-# A_msk_lottery_data_folder/*
-# A_msk_balls_png/*
+# Local crawler logs only. The source lottery CSV files remain tracked because
+# the prediction app needs them at runtime.
+Z4_lotto_prize_2026_crawler/log/
+*.log
+
+# Local secrets/config overrides
+.env
+.env.*
+!.env.example

@@ -1,12 +1,19 @@
-# Keep local/runtime data out of Docker images.
-# *.db
-# *.sqlite
-# *.sqlite3
-# member/member_bet_dbs/
+# Keep local databases and runtime output out of Docker images.
+*.db
+*.sqlite
+*.sqlite3
+member/member_bet_dbs/
+S5_smart_bet_strategy/S5_All_Recored/
+S5_smart_bet_strategy/next_draw_pred_data/
 
 # Development/runtime noise.
 .git
+.gitignore
+.dockerignore
 .venv
 __pycache__/
 *.py[oc]
 .DS_Store
+.env
+.env.*
+!.env.example
