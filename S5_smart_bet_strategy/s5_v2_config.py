@@ -8,7 +8,7 @@ DATA_PATH = PROJECT_ROOT / "A_msk_lottery_data_folder" / "M6_lotto_history_prize
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
 # 手動測試參數。
-BACKTEST_PERIODS = 3
+BACKTEST_PERIODS = 10
 WINDOW_PERIODS = 19
 RANDOM_SEED = 20261105
 # S5 v2 預設輸出的兩組、三組及四組組合。

@@ -80,6 +80,7 @@
 
     let selected = [];
     let maxSelect = 3;
+    let disabledNumbers = new Set();
     let lastResetToken = null;
 
     function send(type, data) {
@@ -112,14 +113,14 @@
         btn.className = `ball ${colorClass(num)}`;
 
         const isSelected = selected.includes(num);
-        const isDisabled = !isSelected && selected.length >= maxSelect;
+        const isDisabled = (!isSelected && selected.length >= maxSelect) || disabledNumbers.has(num);
         if (isSelected) btn.classList.add("selected");
         if (isDisabled) btn.classList.add("disabled");
 
         btn.addEventListener("click", () => {
           if (selected.includes(num)) {
             selected = selected.filter((value) => value !== num);
-          } else if (selected.length < maxSelect) {
+          } else if (!disabledNumbers.has(num) && selected.length < maxSelect) {
             selected = [...selected, num].sort((a, b) => a - b);
           }
           render();
@@ -144,6 +145,7 @@
         }
       }
       maxSelect = Number(args.max_select || 3);
+      disabledNumbers = new Set((args.disabled_numbers || []).map(Number));
       render();
     });
 

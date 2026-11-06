@@ -15,7 +15,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from db import (  # noqa: E402
-    add_member_bet,
     delete_all_member_bets,
     delete_member,
     delete_member_bet,
@@ -23,7 +22,6 @@ from db import (  # noqa: E402
     init_member_bet_db,
     is_valid_local_phone,
     list_member_bets,
-    member_bet_exists,
     update_member,
 )
 from member.member_custom_bet import render_custom_bet_page  # noqa: E402
@@ -32,9 +30,6 @@ from member.member_custom_bet import render_custom_bet_page  # noqa: E402
 PRIZE_RESULTS_PATH = PROJECT_ROOT / "A_msk_lottery_data_folder" / "M3_lotto_prize_results.csv"
 LOTTO_RESULTS_PATH = PROJECT_ROOT / "A_msk_lottery_data_folder" / "M2_last_upgrade_lotto_data.csv"
 BALLS_DIR = PROJECT_ROOT / "A_msk_balls_png"
-NEXT_BET_DRAW_RECORD_PATH = (
-    PROJECT_ROOT / "msk_new_seed_apps" / "bet_data" / "nextBetDraw_record.csv"
-)
 
 PRIZE_TABLE = {
     6.0: 10_000_000,
@@ -53,7 +48,9 @@ def require_login() -> str | None:
     email = st.session_state.get("login_email_val")
     if not email:
         st.warning("請先登入會員，才可以使用會員投注中心。")
-        st.page_link("member/member_login.py", label="前往會員登入")
+        if st.button("前往會員登入", key="go_member_login_from_center"):
+            st.session_state["current_page"] = "member"
+            st.rerun()
         return None
 
     init_member_bet_db(email)
@@ -451,7 +448,7 @@ def sync_delete_selection(rows: list[dict], key_prefix: str) -> None:
 
 
 def render_bet_records_tab(email: str, key_prefix: str = "member") -> None:
-    st.subheader("C. 會員投注紀錄")
+    st.subheader("B. 會員投注紀錄")
     st.markdown(
         """
         <style>
@@ -687,7 +684,7 @@ def render_bet_records_tab(email: str, key_prefix: str = "member") -> None:
 def render_admin_member_data_tab() -> None:
     """管理員修改或刪除會員資料。"""
 
-    st.subheader("D. 管理員會員資料")
+    st.subheader("C. 管理員會員資料")
     members = get_all_members()
     current_admin_email = st.session_state.get("login_email_val", "")
 
@@ -737,7 +734,7 @@ def render_admin_member_data_tab() -> None:
 def render_admin_member_bets_tab() -> None:
     """管理員查看及刪除指定會員投注紀錄。"""
 
-    st.subheader("E. 管理員會員投注紀錄")
+    st.subheader("D. 管理員會員投注紀錄")
     members = get_all_members()
     member_emails = [phone_id for _, phone_id, _, _, _, _ in members]
 
@@ -797,22 +794,20 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    tab_names = ["A. 系統預測投注", "B. 會員自定種類投注", "C. 會員投注紀錄"]
+    tab_names = ["A. 會員自定種類投注", "B. 會員投注紀錄"]
     is_admin = st.session_state.get("login_state") == "admin"
     if is_admin:
-        tab_names.extend(["D. 管理員會員資料", "E. 管理員投注紀錄"])
+        tab_names.extend(["C. 管理員會員資料", "D. 管理員投注紀錄"])
 
     tabs = st.tabs(tab_names)
     with tabs[0]:
-        render_system_prediction_tab(email)
-    with tabs[1]:
         render_custom_bet_tab(email)
-    with tabs[2]:
+    with tabs[1]:
         render_bet_records_tab(email, key_prefix="member")
     if is_admin:
-        with tabs[3]:
+        with tabs[2]:
             render_admin_member_data_tab()
-        with tabs[4]:
+        with tabs[3]:
             render_admin_member_bets_tab()
 
 

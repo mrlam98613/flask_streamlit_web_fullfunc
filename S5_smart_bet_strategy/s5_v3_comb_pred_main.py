@@ -38,6 +38,7 @@ RECORD_DIR = Path(__file__).resolve().parent / "S5_All_Recored"
 JSON_DIR = RECORD_DIR / "json_data"
 BET_RECORD_PATH = RECORD_DIR / "bet_recored.csv"
 WIN_RESULTS_PATH = RECORD_DIR / "win_results.csv"
+ABCD_POOL_RECORD_PATH = RECORD_DIR / "ABCD_pool.csv"
 
 
 def score(ticket: tuple[int, ...], draw_numbers: list[int]) -> float:
@@ -130,6 +131,19 @@ def predict(pool_names: tuple[str, ...], seed: int = RANDOM_SEED, print_bet_resu
     print("---")
     print()
     PRED_BET_DIR.mkdir(parents=True, exist_ok=True)
+    pool_path = PRED_BET_DIR / "next_draw_pred_balls_pool.csv"
+    with pool_path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["bet_date", "main_group", "support_groups", "group", "candidate_balls"])
+        for group in "ABCD":
+            writer.writerow([
+                prediction_date,
+                main,
+                ",".join(cast(list[str], analysis["supports"])),
+                group,
+                "[" + ",".join(map(str, candidates[group])) + "]",
+            ])
+    append_candidate_pool_record(prediction_date, main, cast(list[str], analysis["supports"]), candidates)
     result_lines = []
     record_rows: list[dict[str, str]] = []
     for index, pool in enumerate(pool_names):
@@ -138,7 +152,7 @@ def predict(pool_names: tuple[str, ...], seed: int = RANDOM_SEED, print_bet_resu
         bets, meta = generate_dynamic_bets(candidates, pool, selected_main, seed + index)
         bets = limit_previous_overlap(bets, candidates, previous, seed + 1000 + index)
         pool_code = pool.replace("+", "")
-        path = PRED_BET_DIR / f"s5_v3_{pool_code}_{len(bets)}_.csv"
+        path = PRED_BET_DIR / f"s5_v3_{pool_code}_{meta['pool_size']}_{len(bets)}_.csv"
         with path.open("w", encoding="utf-8-sig", newline="") as handle:
             writer = csv.writer(handle)
             writer.writerow(["bet_date", "N1_N6"])
@@ -149,6 +163,47 @@ def predict(pool_names: tuple[str, ...], seed: int = RANDOM_SEED, print_bet_resu
         if print_bet_results:
             print(result_lines[-1])
     return result_lines, record_rows
+
+
+def append_candidate_pool_record(
+    prediction_date: str,
+    main_group: str,
+    support_groups: list[str],
+    candidates: dict[str, list[int]],
+) -> None:
+    """將每期 A/B/C/D 候選球池追加到長期紀錄，日期相同則不重複。"""
+    RECORD_DIR.mkdir(parents=True, exist_ok=True)
+    existing: list[dict[str, str]] = []
+    if ABCD_POOL_RECORD_PATH.exists():
+        with ABCD_POOL_RECORD_PATH.open("r", encoding="utf-8-sig", newline="") as handle:
+            existing = list(csv.DictReader(handle))
+    if any(row.get("bet_date", "") == prediction_date for row in existing):
+        return
+    fieldnames = ["bet_date", "main_group", "support_groups", "group", "candidate_balls"]
+    migrated = [
+        {
+            "bet_date": row.get("bet_date", ""),
+            "main_group": row.get("main_group", ""),
+            "support_groups": row.get("support_groups", ""),
+            "group": row.get("group", ""),
+            "candidate_balls": row.get("candidate_balls", ""),
+        }
+        for row in existing
+    ]
+    migrated.extend(
+        {
+            "bet_date": prediction_date,
+            "main_group": main_group,
+            "support_groups": ",".join(support_groups),
+            "group": group,
+            "candidate_balls": "[" + ",".join(map(str, candidates[group])) + "]",
+        }
+        for group in "ABCD"
+    )
+    with ABCD_POOL_RECORD_PATH.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(migrated)
 
 
 def append_bet_records(rows: list[dict[str, str]]) -> None:
