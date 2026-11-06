@@ -344,6 +344,11 @@ def render_page() -> None:
                 if duplicated:
                     st.info(f"已有相同投注，略過：{duplicated} 注。")
 
+    st.markdown("<div style='height:18px;'></div>", unsafe_allow_html=True)
+    if st.button("👤 前往會員登入網頁", type="secondary", width="stretch"):
+        st.session_state["current_page"] = "member"
+        st.rerun()
+
 
 if __name__ == "__main__":
     render_page()
