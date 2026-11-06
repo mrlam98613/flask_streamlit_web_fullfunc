@@ -10,7 +10,7 @@ ENV MEMBER_DATA_DIR=/data/member
 
 # 複製 requirements 並安裝 Python 套件。
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --root-user-action=ignore -r requirements.txt
 
 # 複製所有程式碼。
 COPY . .
