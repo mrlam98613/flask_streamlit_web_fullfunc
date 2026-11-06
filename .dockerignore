@@ -1,8 +1,8 @@
 # Keep local/runtime data out of Docker images.
-*.db
-*.sqlite
-*.sqlite3
-member/member_bet_dbs/
+# *.db
+# *.sqlite
+# *.sqlite3
+# member/member_bet_dbs/
 
 # Development/runtime noise.
 .git
