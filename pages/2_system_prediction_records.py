@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import csv
 import json
+import os
 import sqlite3
 from pathlib import Path
 
@@ -12,8 +13,9 @@ import streamlit as st
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-MEMBERS_DB = PROJECT_ROOT / "member" / "members.db"
-BET_DB_DIR = PROJECT_ROOT / "member" / "member_bet_dbs"
+MEMBER_DATA_DIR = Path(os.getenv("MEMBER_DATA_DIR", str(PROJECT_ROOT / "member"))).expanduser()
+MEMBERS_DB = MEMBER_DATA_DIR / "members.db"
+BET_DB_DIR = MEMBER_DATA_DIR / "member_bet_dbs"
 BALLS_DIR = PROJECT_ROOT / "A_msk_balls_png"
 LOTTO_RESULTS_PATH = PROJECT_ROOT / "A_msk_lottery_data_folder" / "M2_last_upgrade_lotto_data.csv"
 PAYOUTS = {3.0: 40, 3.5: 320, 4.0: 640, 4.5: 9600}
