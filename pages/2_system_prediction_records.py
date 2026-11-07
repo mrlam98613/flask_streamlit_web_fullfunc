@@ -119,10 +119,12 @@ def render_page() -> None:
                 total_cost += int(row.get("total_cost") or 0)
                 if draw:
                     total_payout += PAYOUTS.get(score(row, draw), 0) * int(row.get("total_bets") or 1)
+                bet_type = str(row.get("bet_type", "")).replace("六合彩", "")
+                status_color = "#2563eb" if draw else "#dc2626"
                 st.markdown(
                     f"<div style='font-size:0.88rem;font-weight:600;margin:3px 0 2px;'>"
                     f"{record_number}. 投注開獎日期：{selected_date}｜"
-                    f"{row.get('bet_type', '')}｜{status}</div>",
+                    f"{bet_type}｜<span style='color:{status_color};'>{status}</span></div>",
                     unsafe_allow_html=True,
                 )
                 render_numbers(row, draw)
