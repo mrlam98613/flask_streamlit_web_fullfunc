@@ -22,6 +22,12 @@ PAGES = {
         "login_required": False,
         # S5_smart_bet_streategy/ s5_v3_comb_pred_main.py
     },
+    "system_prediction_records": {
+        "label": "系統投注紀錄",
+        "icon": "📋",
+        "path": PROJECT_ROOT / "pages" / "2_system_prediction_records.py",
+        "login_required": False,
+    },
     "results": {
         "label": "開獎紀錄",
         "icon": "📊",

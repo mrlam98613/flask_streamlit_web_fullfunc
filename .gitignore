@@ -14,9 +14,10 @@ wheels/
 *.sqlite
 *.sqlite3
 member/member_bet_dbs/
-# S5_smart_bet_strategy/S5_All_Recored/
+S5_smart_bet_strategy/S5_All_Recored/
+S5_smart_bet_strategy/next_draw_pred_data/
 
-
+Dockerfile
 # Local crawler logs only. The source lottery CSV files remain tracked because
 # the prediction app needs them at runtime.
 

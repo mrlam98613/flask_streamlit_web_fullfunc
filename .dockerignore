@@ -3,7 +3,8 @@
 *.sqlite
 *.sqlite3
 member/member_bet_dbs/
-# S5_smart_bet_strategy/S5_All_Recored/
+S5_smart_bet_strategy/S5_All_Recored/
+S5_smart_bet_strategy/next_draw_pred_data/
 
 # Source-control and local development files.
 .git

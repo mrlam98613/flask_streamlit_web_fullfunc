@@ -152,6 +152,17 @@ def render_ball_images(nums: list[int], highlight: dict | None = None) -> None:
     """用球圖顯示投注號碼；中正號紅圈，中特號藍框。"""
 
     highlight = highlight or {}
+    parts = build_ball_image_parts(nums, highlight)
+    st.markdown(
+        f"<div style='display:flex;align-items:center;gap:2px;flex-wrap:wrap;margin:4px 0;'>{''.join(parts)}</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def build_ball_image_parts(nums: list[int], highlight: dict | None = None) -> list[str]:
+    """建立球圖 HTML 片段，供單式及膽拖分組顯示共用。"""
+
+    highlight = highlight or {}
     parts = []
     for num in nums:
         b64 = load_ball_image_base64(int(num))
@@ -178,6 +189,17 @@ def render_ball_images(nums: list[int], highlight: dict | None = None) -> None:
                 f"{int(num):02d}</span>"
             )
 
+    return parts
+
+
+def render_banker_leg_images(bankers: list[int], legs: list[int], highlight: dict | None = None) -> None:
+    """以「膽球圖＋配腳球圖」格式顯示膽拖投注。"""
+
+    banker_parts = build_ball_image_parts(bankers, highlight)
+    leg_parts = build_ball_image_parts(legs, highlight)
+    parts = banker_parts + [
+        "<span style='font-size:1.35rem;font-weight:800;margin:0 7px;'>＋</span>"
+    ] + leg_parts
     st.markdown(
         f"<div style='display:flex;align-items:center;gap:2px;flex-wrap:wrap;margin:4px 0;'>{''.join(parts)}</div>",
         unsafe_allow_html=True,
@@ -648,7 +670,10 @@ def render_bet_records_tab(email: str, key_prefix: str = "member") -> None:
                 unsafe_allow_html=True,
             )
 
-            render_ball_images(display_numbers, highlight=highlight)
+            if bankers or legs:
+                render_banker_leg_images(bankers, legs, highlight=highlight)
+            else:
+                render_ball_images(display_numbers, highlight=highlight)
             payout = int(row.get("payout") or 0)
             result_status = str(row.get("result_status") or "")
             status_html = (

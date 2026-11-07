@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import csv
+import json
 import math
 import random
 from datetime import datetime
@@ -15,7 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from db import add_member_bet, member_bet_exists  # noqa: E402
+from db import add_member_bet, list_member_bets, member_bet_exists  # noqa: E402
 from custom_components.number_picker import number_picker  # noqa: E402
 
 
@@ -98,13 +99,15 @@ def format_date_with_weekday(date_text: str) -> str:
     return f"{date_text}（星期{week_map[dt.weekday()]}）"
 
 
-def load_abcd_pool() -> dict[str, list[int]]:
+def load_abcd_pool() -> tuple[str, list[str], dict[str, list[int]]]:
     """讀取最新 S5 v3 ABCD 候選球池。"""
     if not ABCD_POOL_PATH.exists():
-        return {}
+        return "", [], {}
     import re
 
     pools: dict[str, list[int]] = {}
+    main_group = ""
+    support_groups: list[str] = []
     with ABCD_POOL_PATH.open("r", encoding="utf-8-sig", newline="") as handle:
         for row in csv.DictReader(handle):
             group = (row.get("group") or "").strip()
@@ -113,12 +116,19 @@ def load_abcd_pool() -> dict[str, list[int]]:
                     int(value)
                     for value in re.findall(r"\d+", row.get("candidate_balls") or "")
                 ]
-    return pools
+            if not main_group:
+                main_group = (row.get("main_group") or "").strip()
+                support_groups = [
+                    value.strip()
+                    for value in (row.get("support_groups") or "").split(",")
+                    if value.strip()
+                ]
+    return main_group, support_groups, pools
 
 
 def render_abcd_pool_card() -> None:
     """以文字卡片顯示最新 ABCD 預測球池。"""
-    pools = load_abcd_pool()
+    main_group, support_groups, pools = load_abcd_pool()
     if not pools:
         return
     total = sum(len(values) for values in pools.values())
@@ -131,11 +141,13 @@ def render_abcd_pool_card() -> None:
         f"""
         <div class='abcd-pool-card'>
           <div class='abcd-pool-title'>下期預測球池：ABCD 組，合共 {total} 球</div>
+          <div class='abcd-pool-trend'><b>主力組：</b>{main_group or '未提供'}　<b>配腳組：</b>{','.join(support_groups) or '未提供'}</div>
           {rows}
         </div>
         <style>
         .abcd-pool-card {{ border:1px solid #dbeafe; border-radius:10px; background:#f8fbff; padding:10px 12px; margin:4px 0 12px; }}
         .abcd-pool-title {{ font-weight:700; color:#1e3a8a; margin-bottom:6px; }}
+        .abcd-pool-trend {{ font-size:0.9rem; color:#374151; margin-bottom:5px; }}
         .abcd-pool-row {{ display:flex; gap:8px; align-items:center; padding:3px 0; font-size:0.88rem; }}
         .abcd-pool-row span {{ width:18px; font-weight:700; }}
         .abcd-pool-values {{ flex:1; color:#374151; font:inherit; white-space:normal; }}
@@ -646,10 +658,11 @@ def save_standard_custom_bet(
         total_cost=total_cost,
     )
     if saved:
+        st.session_state["custom_direct_numbers"] = []
         st.session_state["custom_picker_seed_numbers"] = []
         st.session_state["custom_seed_reset_token"] += 1
-        st.session_state["custom_saved_notice"] = "你的種子選號投注- 已存紀錄。"
-        st.session_state["custom_save_locked"] = True
+        st.session_state["custom_saved_notice"] = "存檔成功，已加入會員投注紀錄。"
+        st.session_state["custom_save_locked"] = False
 
 
 def clear_banker_leg_custom_bet() -> None:
@@ -701,8 +714,49 @@ def save_banker_leg_custom_bet(
         total_cost=total_cost,
     )
     if saved:
-        st.session_state["custom_saved_notice"] = "你的種子選號投注- 已存紀錄。"
-        st.session_state["custom_save_locked"] = True
+        st.session_state["custom_banker_numbers"] = []
+        st.session_state["custom_leg_numbers"] = []
+        st.session_state["custom_saved_notice"] = "存檔成功，已加入會員投注紀錄。"
+        st.session_state["custom_save_locked"] = False
+
+
+def render_current_pending_bets(email: str, bet_date: str) -> None:
+    """顯示目前開獎日、尚未開獎的會員投注紀錄及合計。"""
+    if not bet_date:
+        return
+    pending_rows = [
+        row
+        for row in list_member_bets(email)
+        if row.get("bet_date") == bet_date and row.get("result_status") in (None, "", "pending", "未開獎")
+    ]
+    if not pending_rows:
+        return
+
+    total_bets = sum(int(row.get("total_bets") or 1) for row in pending_rows)
+    total_cost = sum(int(row.get("total_cost") or 0) for row in pending_rows)
+    table_rows = []
+    for index, row in enumerate(pending_rows, start=1):
+        bankers = json.loads(row.get("bankers") or "[]")
+        legs = json.loads(row.get("legs") or "[]")
+        numbers = json.loads(row.get("numbers") or "[]")
+        if bankers or legs:
+            number_text = ",".join(map(str, bankers)) + " + " + ",".join(map(str, legs))
+        else:
+            number_text = ",".join(map(str, numbers))
+        table_rows.append(
+            {
+                "序號": index,
+                "來源": row.get("bet_source", ""),
+                "投注種類": row.get("bet_type", ""),
+                "號碼": number_text,
+                "每注$": int(row.get("bet_unit") or 0),
+                "注數": int(row.get("total_bets") or 1),
+                "金額": int(row.get("total_cost") or 0),
+            }
+        )
+    st.markdown("### 本期未開獎投注紀錄")
+    st.dataframe(table_rows, hide_index=True, width="stretch")
+    st.markdown(f"**最新開獎日：** {bet_date}，共 **{total_bets} 注**，總投注金額 **${total_cost}**。")
 
 
 def render_banker_leg_bet_page(
@@ -775,6 +829,7 @@ def render_banker_leg_bet_page(
         on_click=save_banker_leg_custom_bet,
         args=(email, bet_date, combined_nums, bankers, legs, bet_unit, total_bets, total_cost),
     )
+    render_current_pending_bets(email, bet_date)
 
 
 def render_custom_bet_page(email: str) -> None:
@@ -876,3 +931,4 @@ def render_custom_bet_page(email: str) -> None:
         on_click=save_standard_custom_bet,
         args=(email, bet_date, bet_type, nums, bet_unit, total_bets, total_cost),
     )
+    render_current_pending_bets(email, bet_date)
