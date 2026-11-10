@@ -5,44 +5,44 @@
   "best": {
     "rank": 1,
     "pool": "A+B",
-    "hit_rate": 4.761904761904762,
-    "hit_3_plus": 3,
-    "total_bets": 63,
+    "hit_rate": 3.225806451612903,
+    "hit_3_plus": 2,
+    "total_bets": 62,
     "max_hit": 3.0,
     "distribution": {
-      "3.0": 3
+      "3.0": 2
     }
   },
   "ranking": [
     {
       "rank": 1,
       "pool": "A+B",
-      "hit_rate": 4.761904761904762,
-      "hit_3_plus": 3,
-      "total_bets": 63,
+      "hit_rate": 3.225806451612903,
+      "hit_3_plus": 2,
+      "total_bets": 62,
       "max_hit": 3.0,
       "distribution": {
-        "3.0": 3
+        "3.0": 2
       }
     },
     {
       "rank": 2,
-      "pool": "A+B+C",
-      "hit_rate": 3.1578947368421053,
-      "hit_3_plus": 3,
-      "total_bets": 95,
-      "max_hit": 4.0,
+      "pool": "A+C",
+      "hit_rate": 2.73972602739726,
+      "hit_3_plus": 2,
+      "total_bets": 73,
+      "max_hit": 3.5,
       "distribution": {
-        "3.0": 2,
-        "4.0": 1
+        "3.0": 1,
+        "3.5": 1
       }
     },
     {
       "rank": 3,
-      "pool": "A+C+D",
-      "hit_rate": 3.1578947368421053,
+      "pool": "A+B+C+D",
+      "hit_rate": 2.4193548387096775,
       "hit_3_plus": 3,
-      "total_bets": 95,
+      "total_bets": 124,
       "max_hit": 3.5,
       "distribution": {
         "3.0": 2,
@@ -51,57 +51,54 @@
     },
     {
       "rank": 4,
-      "pool": "A+C",
-      "hit_rate": 2.73972602739726,
-      "hit_3_plus": 2,
-      "total_bets": 73,
-      "max_hit": 4.0,
-      "distribution": {
-        "3.0": 1,
-        "4.0": 1
-      }
-    },
-    {
-      "rank": 5,
-      "pool": "A+B+C+D",
-      "hit_rate": 2.380952380952381,
-      "hit_3_plus": 3,
-      "total_bets": 126,
-      "max_hit": 4.0,
-      "distribution": {
-        "3.0": 2,
-        "4.0": 1
-      }
-    },
-    {
-      "rank": 6,
-      "pool": "A+B+D",
+      "pool": "A+C+D",
       "hit_rate": 2.1052631578947367,
       "hit_3_plus": 2,
       "total_bets": 95,
-      "max_hit": 4.0,
-      "distribution": {
-        "3.0": 1,
-        "4.0": 1
-      }
-    },
-    {
-      "rank": 7,
-      "pool": "B+C+D",
-      "hit_rate": 2.0618556701030926,
-      "hit_3_plus": 2,
-      "total_bets": 97,
       "max_hit": 3.0,
       "distribution": {
         "3.0": 2
       }
     },
     {
+      "rank": 5,
+      "pool": "A+B+D",
+      "hit_rate": 2.1052631578947367,
+      "hit_3_plus": 2,
+      "total_bets": 95,
+      "max_hit": 3.0,
+      "distribution": {
+        "3.0": 2
+      }
+    },
+    {
+      "rank": 6,
+      "pool": "A+B+C",
+      "hit_rate": 2.1052631578947367,
+      "hit_3_plus": 2,
+      "total_bets": 95,
+      "max_hit": 3.0,
+      "distribution": {
+        "3.0": 2
+      }
+    },
+    {
+      "rank": 7,
+      "pool": "A+D",
+      "hit_rate": 1.7543859649122806,
+      "hit_3_plus": 1,
+      "total_bets": 57,
+      "max_hit": 3.0,
+      "distribution": {
+        "3.0": 1
+      }
+    },
+    {
       "rank": 8,
       "pool": "B+D",
-      "hit_rate": 1.639344262295082,
+      "hit_rate": 1.694915254237288,
       "hit_3_plus": 1,
-      "total_bets": 61,
+      "total_bets": 59,
       "max_hit": 3.0,
       "distribution": {
         "3.0": 1
@@ -109,10 +106,10 @@
     },
     {
       "rank": 9,
-      "pool": "C+D",
-      "hit_rate": 1.36986301369863,
+      "pool": "B+C+D",
+      "hit_rate": 1.0526315789473684,
       "hit_3_plus": 1,
-      "total_bets": 73,
+      "total_bets": 95,
       "max_hit": 3.0,
       "distribution": {
         "3.0": 1
@@ -120,22 +117,20 @@
     },
     {
       "rank": 10,
-      "pool": "B+C",
-      "hit_rate": 1.3333333333333335,
-      "hit_3_plus": 1,
-      "total_bets": 75,
-      "max_hit": 3.0,
-      "distribution": {
-        "3.0": 1
-      }
+      "pool": "C+D",
+      "hit_rate": 0.0,
+      "hit_3_plus": 0,
+      "total_bets": 71,
+      "max_hit": 2.5,
+      "distribution": {}
     },
     {
       "rank": 11,
-      "pool": "A+D",
+      "pool": "B+C",
       "hit_rate": 0.0,
       "hit_3_plus": 0,
-      "total_bets": 57,
-      "max_hit": 2.0,
+      "total_bets": 75,
+      "max_hit": 2.5,
       "distribution": {}
     }
   ]
