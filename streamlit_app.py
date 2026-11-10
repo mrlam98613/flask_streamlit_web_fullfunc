@@ -36,12 +36,12 @@ PAGES = {
         "bet_path": PROJECT_ROOT / "member" / "member_bet_center.py",
         "login_required": False,
     },
-    # "calculator": {
-    #     "label": "投注派彩計算",
-    #     "icon": "🧮",
-    #     "path": PROJECT_ROOT / "pages" / "3_multiple_bet.py",
-    #     "login_required": False,
-    # },
+    "calculator": {
+        "label": "投注派彩計算",
+        "icon": "🧮",
+        "path": PROJECT_ROOT / "pages" / "3_multiple_bet.py",
+        "login_required": False,
+    },
 }
 
 CALCULATOR_PAGES = {
