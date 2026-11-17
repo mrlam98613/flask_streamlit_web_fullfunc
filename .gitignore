@@ -20,7 +20,8 @@ S5_smart_bet_strategy/next_draw_pred_data/
 Dockerfile
 # Local crawler logs only. The source lottery CSV files remain tracked because
 # the prediction app needs them at runtime.
-
+Z4_lotto_prize_2026_crawler/Lotto_Data_folder/*.csv
+Z4_lotto_prize_2026_crawler/
 
 # Local secrets/config overrides
 .env
