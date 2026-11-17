@@ -10,11 +10,11 @@ from typing import cast
 
 try:
     from .s5_v2_abcd_predict import analyze_window, candidate_groups, read_draws
-    from .s5_v2_config import DATA_PATH, GROUPS, RANDOM_SEED, WINDOW_PERIODS
+    from .s5_v2_config import BACKTEST_PERIODS, DATA_PATH, GROUPS, RANDOM_SEED, WINDOW_PERIODS
     from .s5_v2_dynamic_bets import generate_dynamic_bets, limit_previous_overlap
 except ImportError:  # 允許直接用檔案路徑執行
     from s5_v2_abcd_predict import analyze_window, candidate_groups, read_draws
-    from s5_v2_config import DATA_PATH, GROUPS, RANDOM_SEED, WINDOW_PERIODS
+    from s5_v2_config import BACKTEST_PERIODS, DATA_PATH, GROUPS, RANDOM_SEED, WINDOW_PERIODS
     from s5_v2_dynamic_bets import generate_dynamic_bets, limit_previous_overlap
 '''
 依賴 s5_v2 支程式 
@@ -40,7 +40,6 @@ JSON 輸出內容
 '''
 
 VERSION = "S5_v3，動態候選球池組合驗證"
-BACKTEST_PERIODS = 19 # 回測期 
 
 
 POOL_NAMES = tuple(
@@ -67,7 +66,10 @@ def validate(backtest_periods: int, window_periods: int, seed: int) -> dict[str,
     total_bets = {pool: 0 for pool in POOL_NAMES}
 
     print(f'=== "{VERSION}" ===')
-    print(f"回測期= {count}  窗口期={window_periods}，驗證組合={POOL_NAMES}")
+    print(
+        f"回測期總期數={backtest_periods}，窗口期={window_periods}，"
+        f"驗證總期數={count}，驗證組合={POOL_NAMES}"
+    )
 
     for offset, target_index in enumerate(range(first_target, len(draws))):
         window = draws[target_index - window_periods:target_index]
@@ -95,13 +97,14 @@ def validate(backtest_periods: int, window_periods: int, seed: int) -> dict[str,
         for pool_index, pool in enumerate(POOL_NAMES):
             pool_groups = pool.split("+")
             selected_main = main_group if main_group in pool_groups else pool_groups[0]
+            previous_numbers = draws[target_index - 1]["numbers"] if target_index > 0 else []
             bets, meta = generate_dynamic_bets(
                 candidates,
                 pool,
                 selected_main,
                 seed + offset * 100 + pool_index,
+                previous_numbers,
             )
-            previous_numbers = draws[target_index - 1]["numbers"] if target_index > 0 else []
             bets = limit_previous_overlap(bets, candidates, previous_numbers, seed + offset * 1000 + pool_index)
             hits = [score(ticket, target["numbers"]) for ticket in bets]
             total_bets[pool] += len(hits)
@@ -112,7 +115,11 @@ def validate(backtest_periods: int, window_periods: int, seed: int) -> dict[str,
                     totals[pool][hit] += 1
             print(f"  {pool:<7} {meta['pool_size']}球 / {len(bets)}注 / 最高{best:g}分")
 
-    print(f"=== S5 V3 - 回測期 = {count}，全部動態組合驗證 總結 ===")
+    print()
+    print(
+        f"=== S5 V3 - 回測期 = {backtest_periods}，窗口期 = {window_periods}，"
+        "驗證動態組合核對統計 ==="
+    )
     ranked = []
     for pool in POOL_NAMES:
         positive = [
@@ -125,7 +132,11 @@ def validate(backtest_periods: int, window_periods: int, seed: int) -> dict[str,
         ranked.append((hit_rate, total_3_plus, max_hits[pool], pool))
         print(f"{pool:<7} {', '.join(positive) if positive else '>'}")
 
-    print(f"=== 回測期 = {count}，命中表現排序（3 球或以上注數） ===")
+    print()
+    print(
+        f"=== s5 V3 - 回測期 = {backtest_periods}，窗口 = {window_periods}，"
+        "統計命中組合表現排序（3 球或以上注數） ==="
+    )
     ranking_rows = []
     for rank, (hit_rate, count_3_plus, best, pool) in enumerate(sorted(ranked, reverse=True), start=1):
         print(f"{rank:02d}. {pool:<7} 命中率={hit_rate:.2f}%（{count_3_plus}/{total_bets[pool]}注），單期最高={best:g}球")
@@ -134,7 +145,15 @@ def validate(backtest_periods: int, window_periods: int, seed: int) -> dict[str,
     json_dir = Path(__file__).resolve().parent / "S5_All_Recored" / "json_data"
     json_dir.mkdir(parents=True, exist_ok=True)
     with (json_dir / "s5_v3_best_combination.json").open("w", encoding="utf-8") as handle:
-        payload = {"version": VERSION, "backtest_periods": count, "window_periods": window_periods, "best": best, "ranking": ranking_rows}
+        payload = {
+            "version": VERSION,
+            "backtest_periods": count,
+            "requested_backtest_periods": backtest_periods,
+            "window_periods": window_periods,
+            "validation_periods": count,
+            "best": best,
+            "ranking": ranking_rows,
+        }
         json.dump(payload, handle, ensure_ascii=False, indent=2)
     print(f"最佳組合已寫入：{json_dir / 's5_v3_best_combination.json'}")
     return payload

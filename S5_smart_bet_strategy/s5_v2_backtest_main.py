@@ -91,8 +91,10 @@ def run(backtest_periods=BACKTEST_PERIODS, window_periods=WINDOW_PERIODS, seed=R
         for pool_index, pool in enumerate(OUTPUT_POOLS):
             pool_groups = pool.split("+")
             pool_main = main if main in pool_groups else pool_groups[0]
-            bets, meta = generate_dynamic_bets(groups, pool, pool_main, seed + offset * 100 + pool_index)
             previous_numbers = draws[target_index - 1]["numbers"] if target_index > 0 else []
+            bets, meta = generate_dynamic_bets(
+                groups, pool, pool_main, seed + offset * 100 + pool_index, previous_numbers
+            )
             bets = limit_previous_overlap(bets, groups, previous_numbers, seed + offset * 1000 + pool_index)
             distribution = {}
             for ticket in bets:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import csv
 import json
 import io
@@ -134,22 +135,22 @@ def predict(pool_names: tuple[str, ...], seed: int = RANDOM_SEED, print_bet_resu
     pool_path = PRED_BET_DIR / "next_draw_pred_balls_pool.csv"
     with pool_path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["bet_date", "main_group", "support_groups", "group", "candidate_balls"])
+        writer.writerow(["bet_date", "group", "candidate_balls"])
         for group in "ABCD":
             writer.writerow([
                 prediction_date,
-                main,
-                ",".join(cast(list[str], analysis["supports"])),
                 group,
                 "[" + ",".join(map(str, candidates[group])) + "]",
             ])
-    append_candidate_pool_record(prediction_date, main, cast(list[str], analysis["supports"]), candidates)
+    append_candidate_pool_record(prediction_date, candidates)
     result_lines = []
     record_rows: list[dict[str, str]] = []
     for index, pool in enumerate(pool_names):
         pool_groups = pool.split("+")
         selected_main = main if main in pool_groups else pool_groups[0]
-        bets, meta = generate_dynamic_bets(candidates, pool, selected_main, seed + index)
+        bets, meta = generate_dynamic_bets(
+            candidates, pool, selected_main, seed + index, previous
+        )
         bets = limit_previous_overlap(bets, candidates, previous, seed + 1000 + index)
         pool_code = pool.replace("+", "")
         path = PRED_BET_DIR / f"s5_v3_{pool_code}_{meta['pool_size']}_{len(bets)}_.csv"
@@ -167,39 +168,65 @@ def predict(pool_names: tuple[str, ...], seed: int = RANDOM_SEED, print_bet_resu
 
 def append_candidate_pool_record(
     prediction_date: str,
-    main_group: str,
-    support_groups: list[str],
     candidates: dict[str, list[int]],
 ) -> None:
-    """將每期 A/B/C/D 候選球池追加到長期紀錄，日期相同則不重複。"""
+    """追加各組球池並更新已開獎日期的命中核對欄。"""
     RECORD_DIR.mkdir(parents=True, exist_ok=True)
     existing: list[dict[str, str]] = []
     if ABCD_POOL_RECORD_PATH.exists():
         with ABCD_POOL_RECORD_PATH.open("r", encoding="utf-8-sig", newline="") as handle:
             existing = list(csv.DictReader(handle))
-    if any(row.get("bet_date", "") == prediction_date for row in existing):
-        return
-    fieldnames = ["bet_date", "main_group", "support_groups", "group", "candidate_balls"]
-    migrated = [
-        {
-            "bet_date": row.get("bet_date", ""),
-            "main_group": row.get("main_group", ""),
-            "support_groups": row.get("support_groups", ""),
+    if not any(row.get("bet_date", "") == prediction_date for row in existing):
+        existing.extend(
+            {
+                "bet_date": prediction_date,
+                "group": group,
+                "candidate_balls": "[" + ",".join(map(str, candidates[group])) + "]",
+            }
+            for group in "ABCD"
+        )
+
+    draw_results: dict[str, list[int]] = {}
+    if DATA_PATH.exists():
+        with DATA_PATH.open("r", encoding="utf-8-sig", newline="") as handle:
+            for draw in csv.DictReader(handle):
+                date = (draw.get("nDdate") or draw.get("ndate") or "").strip()
+                values = [draw.get(f"N{index}", "") for index in range(1, 8)]
+                if date and all(str(value).strip().isdigit() for value in values):
+                    draw_results[date] = [int(value) for value in values]
+
+    fieldnames = ["bet_date", "group", "candidate_balls", "check_date", "hit_num", "hit_count"]
+    migrated = []
+    for row in existing:
+        date = (row.get("bet_date") or "").strip()
+        draw = draw_results.get(date)
+        try:
+            pool_numbers = [int(number) for number in ast.literal_eval(row.get("candidate_balls") or "[]")]
+        except (ValueError, SyntaxError, TypeError):
+            pool_numbers = []
+        if draw:
+            main_draw = draw[:6]
+            special = draw[6]
+            hits = [str(number) for number in main_draw if number in pool_numbers]
+            main_hit_count = len(hits)
+            special_hit = special in pool_numbers
+            if special_hit:
+                hits.append(f"*{special}")
+            hit_count = main_hit_count + (0.5 if special_hit else 0)
+            check_date = date
+            hit_num = "[" + ",".join(hits) + "]"
+            hit_count_text = f"{hit_count:g}"
+        else:
+            check_date = hit_num = hit_count_text = ""
+        migrated.append({
+            "bet_date": date,
             "group": row.get("group", ""),
             "candidate_balls": row.get("candidate_balls", ""),
-        }
-        for row in existing
-    ]
-    migrated.extend(
-        {
-            "bet_date": prediction_date,
-            "main_group": main_group,
-            "support_groups": ",".join(support_groups),
-            "group": group,
-            "candidate_balls": "[" + ",".join(map(str, candidates[group])) + "]",
-        }
-        for group in "ABCD"
-    )
+            "check_date": check_date,
+            "hit_num": hit_num,
+            "hit_count": hit_count_text,
+        })
+
     with ABCD_POOL_RECORD_PATH.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
